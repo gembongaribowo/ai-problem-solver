@@ -1,17 +1,57 @@
 ---
+import { supabase } from '../lib/supabase';
 
+const { data: articles, error } = await supabase
+  .from('articles')
+  .select('*')
+  .eq('status', 'published')
+  .order('published_at', { ascending: false });
 ---
 
+<!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>What's Happening in AI Today</title>
+    <meta
+      name="description"
+      content="AI stories explained simply."
+    />
+  </head>
+
+  <body>
+    <header>
+      <h1>What's Happening in AI Today</h1>
+      <p>AI stories explained simply.</p>
+    </header>
+
+    <main>
+      {error && <p>Unable to load articles.</p>}
+
+      {!error && articles?.length === 0 && (
+        <p>No articles published yet.</p>
+      )}
+
+      {articles?.map((article) => (
+        <article>
+          <p>{article.category}</p>
+
+          <h2>
+  <a href={`/${article.slug}`}>
+    {article.content?.title ?? article.source_title}
+  </a>
+</h2>
+          <p>
+            {article.content?.summary ??
+              'A new AI story explained simply.'}
+          </p>
+
+          <small>
+            Source: {article.source_name}
+          </small>
+        </article>
+      ))}
+    </main>
+  </body>
 </html>

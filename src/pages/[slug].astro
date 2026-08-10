@@ -1,0 +1,141 @@
+---
+import { supabase } from '../lib/supabase';
+
+export async function getStaticPaths() {
+  const { data: articles, error } = await supabase
+    .from('articles')
+    .select('slug')
+    .eq('status', 'published');
+
+  if (error) {
+    console.error(error);
+    return [];
+  }
+
+  return (articles ?? []).map((article) => ({
+    params: {
+      slug: article.slug
+    }
+  }));
+}
+
+const { slug } = Astro.params;
+
+const { data: article, error } = await supabase
+  .from('articles')
+  .select('*')
+  .eq('slug', slug)
+  .eq('status', 'published')
+  .single();
+
+if (!article || error) {
+  return Astro.redirect('/');
+}
+
+const content = article.content ?? {};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+
+    <title>
+      {content.title ?? article.source_title}
+    </title>
+
+    <meta
+      name="description"
+      content={content.summary ?? 'AI story explained simply.'}
+    />
+  </head>
+
+  <body>
+    <header>
+      <a href="/">← Back to all stories</a>
+
+      <p>{article.category}</p>
+
+      <h1>
+        {content.title ?? article.source_title}
+      </h1>
+
+      <p>
+        Source: {article.source_name}
+      </p>
+    </header>
+
+    <main>
+      {content.summary && (
+        <section>
+          <h2>In simple words</h2>
+          <p>{content.summary}</p>
+        </section>
+      )}
+
+      {content.problem && (
+        <section>
+          <h2>The problem</h2>
+          <p>{content.problem}</p>
+        </section>
+      )}
+
+      {content.solution && (
+        <section>
+          <h2>The solution</h2>
+          <p>{content.solution}</p>
+        </section>
+      )}
+
+      {content.workflow && (
+        <section>
+          <h2>How it works</h2>
+
+          <ol>
+            {content.workflow.map((step) => (
+              <li>{step}</li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {content.metrics && (
+        <section>
+          <h2>Results</h2>
+
+          <ul>
+            {content.metrics.map((metric) => (
+              <li>{metric}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {content.technology && (
+        <section>
+          <h2>Technology</h2>
+
+          <ul>
+            {content.technology.map((tech) => (
+              <li>{tech}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <hr />
+
+      <p>
+        Original source:
+        <a
+          href={article.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {article.source_name}
+        </a>
+      </p>
+    </main>
+  </body>
+</html>

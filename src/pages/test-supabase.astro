@@ -1,0 +1,20 @@
+---
+import { supabase } from '../lib/supabase';
+
+const { data, error } = await supabase
+  .from('articles')
+  .select('id, source_title, status')
+  .limit(5);
+---
+
+<html>
+  <body>
+    <h1>Supabase Test</h1>
+
+    {error ? (
+      <pre>{JSON.stringify(error, null, 2)}</pre>
+    ) : (
+      <pre>{JSON.stringify(data, null, 2)}</pre>
+    )}
+  </body>
+</html>
