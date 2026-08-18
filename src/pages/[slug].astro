@@ -1,141 +1,1626 @@
 ---
-import { supabase } from '../lib/supabase';
+import { supabase } from "../lib/supabase";
 
 export async function getStaticPaths() {
   const { data: articles, error } = await supabase
-    .from('articles')
-    .select('slug')
-    .eq('status', 'published');
+    .from("articles")
+    .select("slug")
+    .eq("status", "published")
+    .not("slug", "is", null);
 
   if (error) {
-    console.error(error);
+    console.error("Failed to load article paths:", error);
     return [];
   }
 
   return (articles ?? []).map((article) => ({
     params: {
-      slug: article.slug
-    }
+      slug: article.slug,
+    },
   }));
 }
 
 const { slug } = Astro.params;
 
 const { data: article, error } = await supabase
-  .from('articles')
-  .select('*')
-  .eq('slug', slug)
-  .eq('status', 'published')
+  .from("articles")
+  .select("*")
+  .eq("slug", slug)
+  .eq("status", "published")
   .single();
 
-if (!article || error) {
-  return Astro.redirect('/');
+if (error || !article) {
+  console.error("Article not found:", error);
+  return Astro.redirect("/");
 }
 
-const content = article.content ?? {};
+
+/* =========================================================
+   CONTENT FORMAT DETECTION
+   ========================================================= */
+
+let structuredContent = null;
+
+if (article.content && typeof article.content === "object") {
+  structuredContent = article.content;
+}
+
+if (article.content && typeof article.content === "string") {
+  const trimmedContent = article.content.trim();
+
+  if (
+    trimmedContent.startsWith("{") &&
+    trimmedContent.endsWith("}")
+  ) {
+    try {
+      const parsed = JSON.parse(trimmedContent);
+
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+      ) {
+        structuredContent = parsed;
+      }
+    } catch {
+      structuredContent = null;
+    }
+  }
+}
+
+
+/* =========================================================
+   DETERMINE ARTICLE TYPE
+   ========================================================= */
+
+const isStructuredArticle = Boolean(
+  structuredContent &&
+    (
+      structuredContent.problem_statement ||
+      structuredContent.success_metrics ||
+      structuredContent.how_it_was_built ||
+      structuredContent.actual_performance
+    )
+);
+
+
+/* =========================================================
+   STRUCTURED ARTICLE DATA
+   ========================================================= */
+
+const problem =
+  structuredContent?.problem_statement ?? {};
+
+const metrics =
+  structuredContent?.success_metrics ?? {};
+
+const built =
+  structuredContent?.how_it_was_built ?? {};
+
+const performance =
+  structuredContent?.actual_performance ?? {};
+
+const structuredWhy =
+  structuredContent?.why_it_matters ?? {};
+
+
+/* =========================================================
+   STANDARD ARTICLE DATA
+   ========================================================= */
+
+const standardWhyItMatters =
+  typeof article.why_it_matters === "string"
+    ? article.why_it_matters
+    : typeof structuredContent?.why_it_matters === "string"
+      ? structuredContent.why_it_matters
+      : "";
+
+
+/* =========================================================
+   STRUCTURED IMPACT DATA
+   ========================================================= */
+
+const userImpact =
+  structuredWhy &&
+  typeof structuredWhy === "object"
+    ? structuredWhy.user_impact ?? ""
+    : "";
+
+const organizationalImpact =
+  structuredWhy &&
+  typeof structuredWhy === "object"
+    ? structuredWhy.business_or_organizational_impact ?? ""
+    : "";
+
+
+/* =========================================================
+   DATE
+   ========================================================= */
+
+let publishedDate = "";
+
+if (article.source_published_at) {
+  const date = new Date(article.source_published_at);
+
+  if (!Number.isNaN(date.getTime())) {
+    publishedDate = date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+}
+
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+const hasTechnicalChoices =
+  Array.isArray(built.technical_or_design_choices) &&
+  built.technical_or_design_choices.length > 0;
+
+const hasTradeoffs =
+  Array.isArray(built.constraints_or_tradeoffs) &&
+  built.constraints_or_tradeoffs.length > 0;
+
+const hasSecondaryOutcomes =
+  Array.isArray(performance.secondary_outcomes) &&
+  performance.secondary_outcomes.length > 0;
 ---
 
 <!doctype html>
+
 <html lang="en">
+
   <head>
+
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
+
+    <meta
+      name="viewport"
+      content="width=device-width"
+    />
 
     <title>
-      {content.title ?? article.source_title}
+      {article.title} — AI Product Updates
     </title>
 
     <meta
       name="description"
-      content={content.summary ?? 'AI story explained simply.'}
+      content={article.summary ?? ""}
     />
+
   </head>
 
+
   <body>
-    <header>
-      <a href="/">← Back to all stories</a>
 
-      <p>{article.category}</p>
 
-      <h1>
-        {content.title ?? article.source_title}
-      </h1>
+    <!-- =====================================================
+         HEADER
+         ===================================================== -->
 
-      <p>
-        Source: {article.source_name}
-      </p>
+    <header class="site-header">
+
+      <div class="header-inner">
+
+        <a
+          href="/"
+          class="brand"
+        >
+
+          <span class="brand-mark">
+            AI
+          </span>
+
+          <span class="brand-text">
+            <strong>
+              AI Product Updates
+            </strong>
+          </span>
+
+        </a>
+
+
+        <a
+          href="/"
+          class="back-link"
+        >
+          ← Back to Articles
+        </a>
+
+      </div>
+
     </header>
 
-    <main>
-      {content.summary && (
-        <section>
-          <h2>In simple words</h2>
-          <p>{content.summary}</p>
+
+
+    <!-- =====================================================
+         STRUCTURED CASE STUDY ARTICLE
+         ===================================================== -->
+
+    {isStructuredArticle && (
+
+      <main class="page-container">
+
+
+        <!-- HERO -->
+
+        <section class="hero-card">
+
+          <div class="hero-header">
+
+            <span class="category">
+              {article.category ?? "AI"}
+            </span>
+
+            {publishedDate && (
+              <span class="meta-date">
+                {publishedDate}
+              </span>
+            )}
+
+          </div>
+
+
+          <h1>
+            {article.title}
+          </h1>
+
+
+          {article.summary && (
+            <p class="hero-summary">
+              {article.summary}
+            </p>
+          )}
+
+
+          <div class="source-strip">
+
+            <span>
+              Source:
+              <strong>
+                {article.source_name}
+              </strong>
+            </span>
+
+            {article.score !== null &&
+              article.score !== undefined && (
+
+              <span class="score-badge">
+                Relevance {article.score}/100
+              </span>
+
+            )}
+
+          </div>
+
         </section>
-      )}
 
-      {content.problem && (
-        <section>
-          <h2>The problem</h2>
-          <p>{content.problem}</p>
+
+
+        <!-- PROBLEM -->
+
+        {(problem.what_wasnt_working ||
+          problem.who_was_affected ||
+          problem.baseline_status) && (
+
+          <section class="content-card">
+
+            <div class="card-header">
+
+              <span class="card-num">
+                01
+              </span>
+
+              <h2>
+                Problem & Context
+              </h2>
+
+            </div>
+
+
+            {problem.what_wasnt_working && (
+
+              <p class="lead-text">
+                {problem.what_wasnt_working}
+              </p>
+
+            )}
+
+
+            {(problem.who_was_affected ||
+              problem.baseline_status) && (
+
+              <div class="grid-two">
+
+                {problem.who_was_affected && (
+
+                  <div class="sub-card">
+
+                    <span class="kicker">
+                      AFFECTED USERS
+                    </span>
+
+                    <p>
+                      {problem.who_was_affected}
+                    </p>
+
+                  </div>
+
+                )}
+
+
+                {problem.baseline_status && (
+
+                  <div class="sub-card">
+
+                    <span class="kicker">
+                      BASELINE STATUS
+                    </span>
+
+                    <p>
+                      {problem.baseline_status}
+                    </p>
+
+                  </div>
+
+                )}
+
+              </div>
+
+            )}
+
+          </section>
+
+        )}
+
+
+
+        <!-- METRICS -->
+
+        {(metrics.primary_metric ||
+          metrics.target_goal) && (
+
+          <section class="content-card">
+
+            <div class="card-header">
+
+              <span class="card-num">
+                02
+              </span>
+
+              <h2>
+                Target & Success Metrics
+              </h2>
+
+            </div>
+
+
+            <div class="grid-two">
+
+              {metrics.primary_metric && (
+
+                <div class="sub-card">
+
+                  <span class="kicker">
+                    PRIMARY METRIC
+                  </span>
+
+                  <p>
+                    {metrics.primary_metric}
+                  </p>
+
+                </div>
+
+              )}
+
+
+              {metrics.target_goal && (
+
+                <div class="sub-card">
+
+                  <span class="kicker">
+                    TARGET GOAL
+                  </span>
+
+                  <p>
+                    {metrics.target_goal}
+                  </p>
+
+                </div>
+
+              )}
+
+            </div>
+
+          </section>
+
+        )}
+
+
+
+        <!-- IMPLEMENTATION -->
+
+        {(built.solution ||
+          hasTechnicalChoices ||
+          hasTradeoffs) && (
+
+          <section class="content-card">
+
+            <div class="card-header">
+
+              <span class="card-num">
+                03
+              </span>
+
+              <h2>
+                Implementation Details
+              </h2>
+
+            </div>
+
+
+            {built.solution && (
+
+              <p class="lead-text">
+                {built.solution}
+              </p>
+
+            )}
+
+
+            {hasTechnicalChoices && (
+
+              <div class="list-block">
+
+                <span class="kicker">
+                  TECHNICAL & DESIGN DECISIONS
+                </span>
+
+                <ul class="deck-list">
+
+                  {built.technical_or_design_choices.map(
+                    (choice) => (
+
+                      <li>
+
+                        <span class="bullet">
+                          ▸
+                        </span>
+
+                        <span>
+                          {choice}
+                        </span>
+
+                      </li>
+
+                    )
+                  )}
+
+                </ul>
+
+              </div>
+
+            )}
+
+
+            {hasTradeoffs && (
+
+              <div class="list-block">
+
+                <span class="kicker">
+                  CONSTRAINTS & TRADEOFFS
+                </span>
+
+                <ul class="deck-list">
+
+                  {built.constraints_or_tradeoffs.map(
+                    (tradeoff) => (
+
+                      <li>
+
+                        <span class="bullet">
+                          ▸
+                        </span>
+
+                        <span>
+                          {tradeoff}
+                        </span>
+
+                      </li>
+
+                    )
+                  )}
+
+                </ul>
+
+              </div>
+
+            )}
+
+          </section>
+
+        )}
+
+
+
+        <!-- RESULTS -->
+
+        {(performance.actual_vs_target ||
+          performance.timeline_or_sample_size ||
+          hasSecondaryOutcomes) && (
+
+          <section class="content-card">
+
+            <div class="card-header">
+
+              <span class="card-num">
+                04
+              </span>
+
+              <h2>
+                Post-Launch Results
+              </h2>
+
+            </div>
+
+
+            {performance.actual_vs_target && (
+
+              <div class="result-banner">
+
+                <span class="kicker">
+                  OUTCOME
+                </span>
+
+                <p>
+                  {performance.actual_vs_target}
+                </p>
+
+              </div>
+
+            )}
+
+
+            {performance.timeline_or_sample_size && (
+
+              <p class="timeline-tag">
+
+                Timeline:
+
+                {" "}
+
+                {performance.timeline_or_sample_size}
+
+              </p>
+
+            )}
+
+
+            {hasSecondaryOutcomes && (
+
+              <div class="list-block">
+
+                <span class="kicker">
+                  SECONDARY OUTCOMES
+                </span>
+
+                <ul class="deck-list">
+
+                  {performance.secondary_outcomes.map(
+                    (outcome) => (
+
+                      <li>
+
+                        <span class="bullet">
+                          ▸
+                        </span>
+
+                        <span>
+                          {outcome}
+                        </span>
+
+                      </li>
+
+                    )
+                  )}
+
+                </ul>
+
+              </div>
+
+            )}
+
+          </section>
+
+        )}
+
+
+
+        <!-- STRATEGIC IMPACT -->
+
+        {(userImpact ||
+          organizationalImpact ||
+          standardWhyItMatters) && (
+
+          <section class="content-card">
+
+            <div class="card-header">
+
+              <span class="card-num">
+                05
+              </span>
+
+              <h2>
+                Strategic Impact
+              </h2>
+
+            </div>
+
+
+            {(userImpact ||
+              organizationalImpact) && (
+
+              <div class="grid-two">
+
+                {userImpact && (
+
+                  <div class="sub-card">
+
+                    <span class="kicker">
+                      USER IMPACT
+                    </span>
+
+                    <p>
+                      {userImpact}
+                    </p>
+
+                  </div>
+
+                )}
+
+
+                {organizationalImpact && (
+
+                  <div class="sub-card">
+
+                    <span class="kicker">
+                      ORGANIZATIONAL IMPACT
+                    </span>
+
+                    <p>
+                      {organizationalImpact}
+                    </p>
+
+                  </div>
+
+                )}
+
+              </div>
+
+            )}
+
+
+            {standardWhyItMatters && (
+
+              <div class="impact-banner">
+
+                <p>
+                  {standardWhyItMatters}
+                </p>
+
+              </div>
+
+            )}
+
+
+            <div class="source-footer">
+
+              <div>
+
+                <span class="kicker">
+                  VERIFIED SOURCE
+                </span>
+
+                <strong>
+                  {article.source_name}
+                </strong>
+
+              </div>
+
+
+              <a
+                href={article.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="source-link"
+              >
+                Open Source Document →
+              </a>
+
+            </div>
+
+          </section>
+
+        )}
+
+      </main>
+
+    )}
+
+
+
+    <!-- =====================================================
+         NORMAL AI NEWS ARTICLE
+         ===================================================== -->
+
+    {!isStructuredArticle && (
+
+      <main class="page-container">
+
+
+        <!-- HERO -->
+
+        <section class="hero-card">
+
+          <div class="hero-header">
+
+            <span class="category">
+              {article.category ?? "AI"}
+            </span>
+
+
+            {publishedDate && (
+
+              <span class="meta-date">
+                {publishedDate}
+              </span>
+
+            )}
+
+          </div>
+
+
+          <h1>
+            {article.title}
+          </h1>
+
+
+          <div class="source-strip">
+
+            <span>
+              Source:
+              <strong>
+                {article.source_name}
+              </strong>
+            </span>
+
+
+            {article.score !== null &&
+              article.score !== undefined && (
+
+              <span class="score-badge">
+                Relevance {article.score}/100
+              </span>
+
+            )}
+
+          </div>
+
         </section>
-      )}
 
-      {content.solution && (
-        <section>
-          <h2>The solution</h2>
-          <p>{content.solution}</p>
+
+
+        <!-- WHAT HAPPENED -->
+
+        {article.summary && (
+
+          <section class="content-card">
+
+            <div class="card-header">
+
+              <span class="card-num">
+                01
+              </span>
+
+              <h2>
+                What Happened?
+              </h2>
+
+            </div>
+
+
+            <p class="article-text">
+              {article.summary}
+            </p>
+
+          </section>
+
+        )}
+
+
+
+        <!-- WHY IT MATTERS -->
+
+        {standardWhyItMatters && (
+
+          <section class="content-card">
+
+            <div class="card-header">
+
+              <span class="card-num">
+                02
+              </span>
+
+              <h2>
+                Why It Matters
+              </h2>
+
+            </div>
+
+
+            <div class="impact-banner">
+
+              <p>
+                {standardWhyItMatters}
+              </p>
+
+            </div>
+
+          </section>
+
+        )}
+
+
+
+        <!-- SOURCE -->
+
+        <section class="content-card">
+
+          <div class="source-footer source-footer-clean">
+
+            <div>
+
+              <span class="kicker">
+                VERIFIED SOURCE
+              </span>
+
+              <strong>
+                {article.source_name}
+              </strong>
+
+              {article.source_title && (
+
+                <p class="original-title">
+                  {article.source_title}
+                </p>
+
+              )}
+
+            </div>
+
+
+            <a
+              href={article.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="source-link"
+            >
+              Read Original Article →
+            </a>
+
+          </div>
+
         </section>
-      )}
 
-      {content.workflow && (
-        <section>
-          <h2>How it works</h2>
 
-          <ol>
-            {content.workflow.map((step) => (
-              <li>{step}</li>
-            ))}
-          </ol>
-        </section>
-      )}
+      </main>
 
-      {content.metrics && (
-        <section>
-          <h2>Results</h2>
+    )}
 
-          <ul>
-            {content.metrics.map((metric) => (
-              <li>{metric}</li>
-            ))}
-          </ul>
-        </section>
-      )}
 
-      {content.technology && (
-        <section>
-          <h2>Technology</h2>
 
-          <ul>
-            {content.technology.map((tech) => (
-              <li>{tech}</li>
-            ))}
-          </ul>
-        </section>
-      )}
+    <!-- =====================================================
+         FOOTER
+         ===================================================== -->
 
-      <hr />
+    <footer class="site-footer">
 
-      <p>
-        Original source:
-        <a
-          href={article.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {article.source_name}
-        </a>
-      </p>
-    </main>
+      <div>
+        AI Product Updates
+      </div>
+
+      <span>
+        AI News
+      </span>
+
+    </footer>
+
+
   </body>
+
 </html>
+
+
+
+<style>
+
+  :global(*) {
+    box-sizing: border-box;
+  }
+
+
+  :global(body) {
+    margin: 0;
+    background: #f8fafc;
+    color: #334155;
+
+    font-family:
+      Inter,
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+
+    line-height: 1.5;
+  }
+
+
+  /* =====================================================
+     HEADER
+     ===================================================== */
+
+  .site-header {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+
+    position: sticky;
+    top: 0;
+
+    z-index: 50;
+  }
+
+
+  .header-inner {
+    max-width: 900px;
+
+    margin: auto;
+
+    padding: 12px 20px;
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+  }
+
+
+  .brand {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    text-decoration: none;
+  }
+
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+
+    display: grid;
+
+    place-items: center;
+
+    background: #ea580c;
+
+    color: #ffffff;
+
+    border-radius: 6px;
+
+    font-size: 13px;
+
+    font-weight: 800;
+  }
+
+
+  .brand-text strong {
+    color: #0f172a;
+
+    font-size: 15px;
+  }
+
+
+  .back-link {
+    font-size: 13px;
+
+    font-weight: 600;
+
+    color: #64748b;
+
+    text-decoration: none;
+
+    padding: 6px 12px;
+
+    border-radius: 6px;
+
+    background: #f1f5f9;
+
+    transition: all 0.2s;
+  }
+
+
+  .back-link:hover {
+    color: #ea580c;
+
+    background: #ffedd5;
+  }
+
+
+
+  /* =====================================================
+     PAGE
+     ===================================================== */
+
+  .page-container {
+    max-width: 860px;
+
+    margin: 0 auto;
+
+    padding: 24px 16px 48px;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 16px;
+  }
+
+
+
+  /* =====================================================
+     HERO
+     ===================================================== */
+
+  .hero-card {
+    background: #ffffff;
+
+    border: 1px solid #cbd5e1;
+
+    border-left: 4px solid #ea580c;
+
+    border-radius: 12px;
+
+    padding: 24px;
+
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+
+  .hero-header {
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 12px;
+
+    margin-bottom: 10px;
+  }
+
+
+  .category {
+    font-size: 11px;
+
+    font-weight: 800;
+
+    color: #ea580c;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.05em;
+
+    background: #fff7ed;
+
+    padding: 3px 8px;
+
+    border-radius: 4px;
+
+    border: 1px solid #ffedd5;
+  }
+
+
+  .meta-date {
+    font-size: 12px;
+
+    color: #94a3b8;
+  }
+
+
+  h1 {
+    font-size:
+      clamp(24px, 4vw, 32px);
+
+    font-weight: 800;
+
+    color: #0f172a;
+
+    margin: 0 0 12px;
+
+    line-height: 1.2;
+
+    letter-spacing: -0.02em;
+  }
+
+
+  .hero-summary {
+    font-size: 15px;
+
+    color: #475569;
+
+    margin: 0 0 14px;
+
+    line-height: 1.7;
+  }
+
+
+  .source-strip {
+    border-top:
+      1px solid #f1f5f9;
+
+    padding-top: 12px;
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 12px;
+
+    font-size: 12px;
+
+    color: #64748b;
+  }
+
+
+  .source-strip strong {
+    color: #0f172a;
+  }
+
+
+  .score-badge {
+    white-space: nowrap;
+
+    background: #f1f5f9;
+
+    color: #475569;
+
+    padding: 4px 8px;
+
+    border-radius: 5px;
+
+    font-weight: 700;
+  }
+
+
+
+  /* =====================================================
+     CONTENT CARD
+     ===================================================== */
+
+  .content-card {
+    background: #ffffff;
+
+    border: 1px solid #e2e8f0;
+
+    border-radius: 12px;
+
+    padding: 24px;
+
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+
+
+  .card-header {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    margin-bottom: 16px;
+
+    border-bottom:
+      1px solid #f1f5f9;
+
+    padding-bottom: 10px;
+  }
+
+
+  .card-num {
+    font-size: 11px;
+
+    font-weight: 800;
+
+    color: #ea580c;
+
+    background: #ffedd5;
+
+    padding: 2px 6px;
+
+    border-radius: 4px;
+  }
+
+
+  h2 {
+    font-size: 18px;
+
+    font-weight: 700;
+
+    color: #0f172a;
+
+    margin: 0;
+  }
+
+
+  .lead-text,
+  .article-text {
+    font-size: 15px;
+
+    color: #334155;
+
+    line-height: 1.7;
+
+    margin: 0 0 14px;
+  }
+
+
+  .article-text:last-child {
+    margin-bottom: 0;
+  }
+
+
+
+  /* =====================================================
+     SMALL CARDS
+     ===================================================== */
+
+  .grid-two {
+    display: grid;
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+    gap: 12px;
+  }
+
+
+  .sub-card {
+    background: #f8fafc;
+
+    border:
+      1px solid #e2e8f0;
+
+    border-radius: 8px;
+
+    padding: 14px;
+  }
+
+
+  .sub-card p {
+    margin: 0;
+
+    font-size: 13px;
+
+    line-height: 1.6;
+
+    color: #334155;
+  }
+
+
+  .kicker {
+    display: block;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    color: #ea580c;
+
+    letter-spacing: 0.08em;
+
+    margin-bottom: 5px;
+  }
+
+
+
+  /* =====================================================
+     LISTS
+     ===================================================== */
+
+  .list-block {
+    margin-top: 18px;
+  }
+
+
+  .deck-list {
+    list-style: none;
+
+    padding: 0;
+
+    margin: 8px 0 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 7px;
+  }
+
+
+  .deck-list li {
+    display: flex;
+
+    align-items: flex-start;
+
+    gap: 8px;
+
+    font-size: 13px;
+
+    line-height: 1.6;
+
+    color: #334155;
+
+    background: #f8fafc;
+
+    padding: 9px 12px;
+
+    border-radius: 6px;
+
+    border:
+      1px solid #f1f5f9;
+  }
+
+
+  .bullet {
+    color: #ea580c;
+
+    font-weight: 700;
+
+    flex-shrink: 0;
+  }
+
+
+
+  /* =====================================================
+     RESULTS
+     ===================================================== */
+
+  .result-banner {
+    background: #f0fdf4;
+
+    border:
+      1px solid #bbf7d0;
+
+    border-radius: 8px;
+
+    padding: 14px 16px;
+  }
+
+
+  .result-banner p {
+    margin: 0;
+
+    font-size: 14px;
+
+    line-height: 1.6;
+
+    font-weight: 600;
+
+    color: #166534;
+  }
+
+
+  .timeline-tag {
+    font-size: 12px;
+
+    color: #64748b;
+
+    margin: 10px 0 0;
+  }
+
+
+
+  /* =====================================================
+     WHY IT MATTERS
+     ===================================================== */
+
+  .impact-banner {
+    background: #fff7ed;
+
+    border:
+      1px solid #ffedd5;
+
+    border-radius: 10px;
+
+    padding: 16px 18px;
+
+    margin-top: 14px;
+  }
+
+
+  .impact-banner:first-child {
+    margin-top: 0;
+  }
+
+
+  .impact-banner p {
+    margin: 0;
+
+    color: #7c2d12;
+
+    font-size: 15px;
+
+    line-height: 1.7;
+  }
+
+
+
+  /* =====================================================
+     SOURCE
+     ===================================================== */
+
+  .source-footer {
+    margin-top: 20px;
+
+    padding-top: 16px;
+
+    border-top:
+      1px solid #e2e8f0;
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 20px;
+  }
+
+
+  .source-footer-clean {
+    margin-top: 0;
+
+    padding-top: 0;
+
+    border-top: 0;
+  }
+
+
+  .source-footer strong {
+    font-size: 13px;
+
+    color: #0f172a;
+  }
+
+
+  .original-title {
+    margin: 4px 0 0;
+
+    max-width: 560px;
+
+    font-size: 12px;
+
+    line-height: 1.5;
+
+    color: #64748b;
+  }
+
+
+  .source-link {
+    flex-shrink: 0;
+
+    font-size: 13px;
+
+    font-weight: 700;
+
+    color: #ea580c;
+
+    text-decoration: none;
+  }
+
+
+  .source-link:hover {
+    text-decoration: underline;
+  }
+
+
+
+  /* =====================================================
+     FOOTER
+     ===================================================== */
+
+  .site-footer {
+    max-width: 860px;
+
+    margin: auto;
+
+    padding: 16px 20px 32px;
+
+    border-top:
+      1px solid #e2e8f0;
+
+    display: flex;
+
+    justify-content: space-between;
+
+    color: #94a3b8;
+
+    font-size: 12px;
+  }
+
+
+
+  /* =====================================================
+     MOBILE
+     ===================================================== */
+
+  @media (max-width: 600px) {
+
+    .grid-two {
+      grid-template-columns: 1fr;
+    }
+
+
+    .source-strip {
+      flex-direction: column;
+
+      align-items: flex-start;
+    }
+
+
+    .source-footer {
+      flex-direction: column;
+
+      align-items: flex-start;
+
+      gap: 12px;
+    }
+
+
+    .header-inner {
+      padding:
+        10px 14px;
+    }
+
+
+    .page-container {
+      padding:
+        16px 12px 40px;
+    }
+
+
+    .hero-card,
+    .content-card {
+      padding: 18px;
+    }
+
+
+    .back-link {
+      font-size: 12px;
+    }
+
+  }
+
+</style>
