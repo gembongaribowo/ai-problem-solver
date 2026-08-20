@@ -770,7 +770,51 @@ const countWeek = allArticles.filter((article) => {
     .top-nav { display: none; }
     .main-container { padding: 24px 14px 42px; }
     .hero-strip { padding-top: 8px; }
-    .filter-bar { top: 59px; padding: 14px; }
+
+    /* Mobile category / search controls */
+    .filter-bar {
+      position: relative;
+      top: auto;
+      z-index: 1;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+      padding: 14px;
+      overflow: hidden;
+    }
+
+    .filter-left {
+      min-width: 0;
+    }
+
+    .filter-label {
+      margin-bottom: 8px;
+    }
+
+    .filter-scroll {
+      width: calc(100% + 28px);
+      margin-inline: -14px;
+      padding: 0 14px 4px;
+      gap: 8px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      overscroll-behavior-x: contain;
+      scroll-snap-type: x proximity;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .filter-chip {
+      flex: 0 0 auto;
+      min-height: 38px;
+      padding: 8px 14px;
+      white-space: nowrap;
+      scroll-snap-align: start;
+    }
+
+    .search-box {
+      width: 100%;
+      max-width: none;
+    }
+
     .update-section { padding: 14px; }
     .today-side-grid, .deck-grid { grid-template-columns: 1fr; }
     .featured-card { min-height: 0; grid-template-columns: 1fr; }
