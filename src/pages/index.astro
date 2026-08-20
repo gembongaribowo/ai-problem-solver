@@ -6,6 +6,110 @@ const { data: articles, error } = await supabase
   .select('*')
   .eq('status', 'published')
   .order('published_at', { ascending: false });
+
+const allArticles = articles ?? [];
+
+const jakartaDateKey = (value) => {
+  if (!value) return '';
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(value));
+  } catch {
+    return '';
+  }
+};
+
+const formatDate = (value) => {
+  if (!value) return '';
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jakarta',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(new Date(value));
+  } catch {
+    return '';
+  }
+};
+
+const formatShortDate = (value) => {
+  if (!value) return '';
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jakarta',
+      month: 'short',
+      day: 'numeric',
+    }).format(new Date(value));
+  } catch {
+    return '';
+  }
+};
+
+const now = new Date();
+const todayKey = jakartaDateKey(now);
+const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+const yesterdayKey = jakartaDateKey(yesterday);
+
+const todayArticles = allArticles.filter((article) => jakartaDateKey(article.published_at) === todayKey);
+const yesterdayArticles = allArticles.filter((article) => jakartaDateKey(article.published_at) === yesterdayKey);
+const earlierArticles = allArticles.filter((article) => {
+  const key = jakartaDateKey(article.published_at);
+  return key !== todayKey && key !== yesterdayKey;
+});
+
+const sortByScore = (items) =>
+  [...items].sort((a, b) => Number(b.score ?? 0) - Number(a.score ?? 0));
+
+const sortedToday = sortByScore(todayArticles);
+const featuredArticle = sortedToday[0] ?? null;
+const todayRemaining = featuredArticle ? sortedToday.slice(1) : [];
+const sortedYesterday = sortByScore(yesterdayArticles);
+const sortedEarlier = sortByScore(earlierArticles);
+
+const categories = [
+  ...new Set(
+    allArticles
+      .map((article) => article.category)
+      .filter(Boolean)
+      .map((category) => String(category).trim())
+  ),
+].sort((a, b) => a.localeCompare(b));
+
+const cleanTitle = (article) => {
+  const raw = String(article.title ?? article.source_title ?? 'Untitled update').trim();
+  const source = String(article.source_name ?? '').trim();
+
+  if (!source) return raw;
+
+  const escapedSource = source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return raw.replace(new RegExp(`\\s*[|—-]\\s*${escapedSource}\\s*$`, 'i'), '').trim();
+};
+
+const getSummary = (article) => {
+  if (article.summary) return String(article.summary);
+
+  if (
+    article.content &&
+    typeof article.content === 'object' &&
+    article.content.problem_statement?.what_wasnt_working
+  ) {
+    return String(article.content.problem_statement.what_wasnt_working);
+  }
+
+  return '';
+};
+
+const countToday = todayArticles.length;
+const countWeek = allArticles.filter((article) => {
+  if (!article.published_at) return false;
+  const published = new Date(article.published_at);
+  return now.getTime() - published.getTime() <= 7 * 24 * 60 * 60 * 1000;
+}).length;
 ---
 
 <!doctype html>
@@ -15,26 +119,42 @@ const { data: articles, error } = await supabase
     <meta name="viewport" content="width=device-width" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>AI Product Impact</title>
-    <meta name="description" content="Latest AI updates summarized in structured presentation decks." />
+    <meta
+      name="description"
+      content="Practical AI product launches, adoption stories, and measurable impact — summarized for product teams."
+    />
   </head>
 
   <body>
     <header class="site-header">
       <div class="header-inner">
-        <a href="/" class="brand">
-          <span class="brand-mark">AI</span>
-          <span class="brand-text">
-            <strong>AI Product Deck</strong>
+        <a href="/" class="brand" aria-label="AI Product Impact home">
+          <span class="brand-mark">
+            <img src="/favicon.svg" alt="" width="28" height="28" />
           </span>
+          <span class="brand-text">AI Product Impact</span>
         </a>
+
+        <nav class="top-nav" aria-label="Primary navigation">
+          <a href="/" class="is-active">Home</a>
+          <a href="#all-updates">All updates</a>
+        </nav>
       </div>
     </header>
 
     <main class="main-container">
       <section class="hero-strip">
-        <span class="pill-badge">RELEASE NOTES</span>
-        <h1>Latest AI Updates</h1>
-        <p class="hero-sub">Structured single-deck summaries of key AI changes, metrics, and technical decisions.</p>
+        <span class="pill-badge">PRODUCT INTELLIGENCE</span>
+        <h1>Latest AI Product Updates</h1>
+        <p class="hero-sub">
+          Practical launches, adoption stories, and real-world AI impact — distilled for product teams.
+        </p>
+
+        <div class="hero-stats" aria-label="Update counts">
+          <span><strong>{countToday}</strong> new today</span>
+          <span class="stat-divider"></span>
+          <span><strong>{countWeek}</strong> this week</span>
+        </div>
       </section>
 
       {error && (
@@ -43,247 +163,621 @@ const { data: articles, error } = await supabase
         </div>
       )}
 
-      {!error && articles?.length === 0 && (
+      {!error && allArticles.length === 0 && (
         <div class="state-box">
-          <p>No product update decks published yet.</p>
+          <p>No product updates published yet.</p>
         </div>
       )}
 
-      <div class="deck-grid">
-        {articles?.map((article) => (
-          <article class="deck-card">
-            <div class="card-meta">
-              <span class="category">{article.category}</span>
-              <span class="source">{article.source_name}</span>
+      {!error && allArticles.length > 0 && (
+        <>
+          <section class="filter-bar" aria-label="Browse and search updates">
+            <div class="filter-left">
+              <div class="filter-label">Browse by category</div>
+              <div class="filter-scroll">
+                <button class="filter-chip is-active" type="button" data-filter="all">All</button>
+                {categories.map((category) => (
+                  <button class="filter-chip" type="button" data-filter={category.toLowerCase()}>
+                    {category}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <h2>
-              <a href={`/${article.slug}`}>
-                {article.content?.title ?? article.source_title}
-              </a>
-            </h2>
+            <label class="search-box">
+              <span class="sr-only">Search updates</span>
+              <input id="update-search" type="search" placeholder="Search updates..." autocomplete="off" />
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="m20 20-3.6-3.6"></path>
+              </svg>
+            </label>
+          </section>
 
-            {article.content?.problem_statement?.what_wasnt_working && (
-              <p class="summary">
-                {article.content.problem_statement.what_wasnt_working}
-              </p>
+          <section class="update-section today-section" data-section>
+            <div class="section-heading">
+              <div>
+                <span class="section-kicker">TODAY</span>
+                <h2>New today</h2>
+              </div>
+              <span class="section-count">{todayArticles.length} updates</span>
+            </div>
+
+            {todayArticles.length === 0 ? (
+              <div class="empty-today" data-empty-state>
+                <strong>No new updates yet today.</strong>
+                <span>The latest published updates are still available below.</span>
+              </div>
+            ) : (
+              <div class="today-layout">
+                {featuredArticle && (
+                  <article
+                    class="featured-card"
+                    data-card
+                    data-category={String(featuredArticle.category ?? 'Other').toLowerCase()}
+                    data-search={`${cleanTitle(featuredArticle)} ${featuredArticle.source_name ?? ''} ${featuredArticle.category ?? ''} ${getSummary(featuredArticle)}`.toLowerCase()}
+                  >
+                    <div class="featured-copy">
+                      <div class="featured-topline">
+                        <span class="category">{featuredArticle.category ?? 'Other'}</span>
+                        <span class="source">{featuredArticle.source_name}</span>
+                      </div>
+
+                      <span class="featured-label">FEATURED UPDATE</span>
+                      <h3>
+                        <a href={`/${featuredArticle.slug}`}>{cleanTitle(featuredArticle)}</a>
+                      </h3>
+
+                      {getSummary(featuredArticle) && (
+                        <p>{getSummary(featuredArticle)}</p>
+                      )}
+
+                      <div class="featured-footer">
+                        <div class="featured-meta">
+                          <span>{formatDate(featuredArticle.published_at)}</span>
+                          {featuredArticle.score != null && (
+                            <span>Relevance <strong>{Math.round(Number(featuredArticle.score))}</strong></span>
+                          )}
+                        </div>
+                        <a href={`/${featuredArticle.slug}`} class="primary-btn">Read update →</a>
+                      </div>
+                    </div>
+
+                    <div class="feature-art" aria-hidden="true">
+                      <div class="feature-wave"></div>
+                      <div class="feature-badge">AI</div>
+                    </div>
+                  </article>
+                )}
+
+                {todayRemaining.length > 0 && (
+                  <div class="today-side-grid">
+                    {todayRemaining.slice(0, 4).map((article) => (
+                      <article
+                        class="mini-card"
+                        data-card
+                        data-category={String(article.category ?? 'Other').toLowerCase()}
+                        data-search={`${cleanTitle(article)} ${article.source_name ?? ''} ${article.category ?? ''} ${getSummary(article)}`.toLowerCase()}
+                      >
+                        <div class="mini-topline">
+                          <span class="category">{article.category ?? 'Other'}</span>
+                          <a href={`/${article.slug}`} aria-label={`Open ${cleanTitle(article)}`}>↗</a>
+                        </div>
+                        <h3><a href={`/${article.slug}`}>{cleanTitle(article)}</a></h3>
+                        <span class="mini-source">{article.source_name}</span>
+                        <div class="mini-footer">
+                          <span>{formatShortDate(article.published_at)}</span>
+                          {article.score != null && (
+                            <span>Relevance <strong>{Math.round(Number(article.score))}</strong></span>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
-            <div class="card-action">
-              <a href={`/${article.slug}`} class="view-btn">
-                Open Update Deck →
-              </a>
-            </div>
-          </article>
-        ))}
-      </div>
+            {todayRemaining.length > 4 && (
+              <div class="deck-grid today-more">
+                {todayRemaining.slice(4).map((article) => (
+                  <article
+                    class="deck-card"
+                    data-card
+                    data-category={String(article.category ?? 'Other').toLowerCase()}
+                    data-search={`${cleanTitle(article)} ${article.source_name ?? ''} ${article.category ?? ''} ${getSummary(article)}`.toLowerCase()}
+                  >
+                    <div>
+                      <div class="card-meta">
+                        <span class="category">{article.category ?? 'Other'}</span>
+                        <span class="source">{article.source_name}</span>
+                      </div>
+                      <h3><a href={`/${article.slug}`}>{cleanTitle(article)}</a></h3>
+                      {getSummary(article) && <p class="summary">{getSummary(article)}</p>}
+                    </div>
+                    <div class="card-footer">
+                      <span>{formatShortDate(article.published_at)}</span>
+                      {article.score != null && (
+                        <span>Relevance <strong>{Math.round(Number(article.score))}</strong></span>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {sortedYesterday.length > 0 && (
+            <section class="update-section" data-section>
+              <div class="section-heading section-heading-inline">
+                <div class="inline-date-heading">
+                  <span class="section-kicker">YESTERDAY</span>
+                  <span class="date-context">{formatDate(yesterday)}</span>
+                </div>
+                <span class="section-count">{sortedYesterday.length} updates</span>
+              </div>
+
+              <div class="deck-grid">
+                {sortedYesterday.map((article) => (
+                  <article
+                    class="deck-card"
+                    data-card
+                    data-category={String(article.category ?? 'Other').toLowerCase()}
+                    data-search={`${cleanTitle(article)} ${article.source_name ?? ''} ${article.category ?? ''} ${getSummary(article)}`.toLowerCase()}
+                  >
+                    <div>
+                      <div class="card-meta">
+                        <span class="category">{article.category ?? 'Other'}</span>
+                        <span class="source">{article.source_name}</span>
+                      </div>
+                      <h3><a href={`/${article.slug}`}>{cleanTitle(article)}</a></h3>
+                      <div class="card-inline-meta">
+                        <span>{formatShortDate(article.published_at)}</span>
+                        {article.score != null && (
+                          <span>Relevance <strong>{Math.round(Number(article.score))}</strong></span>
+                        )}
+                      </div>
+                      {getSummary(article) && <p class="summary">{getSummary(article)}</p>}
+                    </div>
+                    <a href={`/${article.slug}`} class="text-link">Read update →</a>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {sortedEarlier.length > 0 && (
+            <section class="update-section" id="all-updates" data-section>
+              <div class="section-heading">
+                <div>
+                  <span class="section-kicker">ARCHIVE</span>
+                  <h2>Earlier updates</h2>
+                </div>
+                <span class="section-count">{sortedEarlier.length} updates</span>
+              </div>
+
+              <div class="deck-grid">
+                {sortedEarlier.map((article) => (
+                  <article
+                    class="deck-card"
+                    data-card
+                    data-category={String(article.category ?? 'Other').toLowerCase()}
+                    data-search={`${cleanTitle(article)} ${article.source_name ?? ''} ${article.category ?? ''} ${getSummary(article)}`.toLowerCase()}
+                  >
+                    <div>
+                      <div class="card-meta">
+                        <span class="category">{article.category ?? 'Other'}</span>
+                        <span class="source">{article.source_name}</span>
+                      </div>
+                      <h3><a href={`/${article.slug}`}>{cleanTitle(article)}</a></h3>
+                      <div class="card-inline-meta">
+                        <span>{formatShortDate(article.published_at)}</span>
+                        {article.score != null && (
+                          <span>Relevance <strong>{Math.round(Number(article.score))}</strong></span>
+                        )}
+                      </div>
+                      {getSummary(article) && <p class="summary">{getSummary(article)}</p>}
+                    </div>
+                    <a href={`/${article.slug}`} class="text-link">Read update →</a>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <div class="filter-empty" id="filter-empty" hidden>
+            No updates match this category and search.
+          </div>
+        </>
+      )}
     </main>
 
     <footer class="site-footer">
-      <div>AI Product Updates</div>
-      <span>Deck Format</span>
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <a href="/" class="brand brand-footer">
+            <span class="brand-mark small"><img src="/favicon.svg" alt="" width="24" height="24" /></span>
+            <span class="brand-text">AI Product Impact</span>
+          </a>
+          <p>Product intelligence for the AI era.<br />Practical. Impactful. Actionable.</p>
+        </div>
+        <div class="footer-note">Latest AI product changes, distilled for product teams.</div>
+      </div>
     </footer>
+
+    <script is:inline>
+      const chips = document.querySelectorAll('[data-filter]');
+      const cards = document.querySelectorAll('[data-card]');
+      const sections = document.querySelectorAll('[data-section]');
+      const emptyState = document.getElementById('filter-empty');
+      const searchInput = document.getElementById('update-search');
+
+      let selectedFilter = 'all';
+      let searchTerm = '';
+
+      const refreshCards = () => {
+        let visibleTotal = 0;
+
+        cards.forEach((card) => {
+          const categoryMatch = selectedFilter === 'all' || card.dataset.category === selectedFilter;
+          const haystack = card.dataset.search || '';
+          const searchMatch = !searchTerm || haystack.includes(searchTerm);
+          const matches = categoryMatch && searchMatch;
+
+          card.hidden = !matches;
+          if (matches) visibleTotal += 1;
+        });
+
+        sections.forEach((section) => {
+          const visibleCards = section.querySelectorAll('[data-card]:not([hidden])');
+          const hasStaticEmptyState = section.querySelector('[data-empty-state]');
+
+          if (selectedFilter === 'all' && !searchTerm && hasStaticEmptyState) {
+            section.hidden = false;
+          } else {
+            section.hidden = visibleCards.length === 0;
+          }
+        });
+
+        if (emptyState) emptyState.hidden = visibleTotal !== 0;
+      };
+
+      chips.forEach((chip) => {
+        chip.addEventListener('click', () => {
+          selectedFilter = chip.dataset.filter || 'all';
+          chips.forEach((item) => item.classList.remove('is-active'));
+          chip.classList.add('is-active');
+          refreshCards();
+        });
+      });
+
+      searchInput?.addEventListener('input', (event) => {
+        searchTerm = String(event.target?.value || '').trim().toLowerCase();
+        refreshCards();
+      });
+    </script>
   </body>
 </html>
 
 <style>
-  :global(*) {
-    box-sizing: border-box;
-  }
-
+  :global(*) { box-sizing: border-box; }
+  :global(html) { scroll-behavior: smooth; }
   :global(body) {
     margin: 0;
-    background: #f8fafc;
-    color: #334155;
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    color: #172033;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     line-height: 1.5;
+    background-color: #eef1f4;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(80, 93, 111, 0.12) 1px, transparent 1.1px),
+      linear-gradient(30deg, transparent 47%, rgba(91, 103, 119, 0.05) 48%, rgba(91, 103, 119, 0.05) 49%, transparent 50%),
+      linear-gradient(150deg, transparent 47%, rgba(234, 88, 12, 0.035) 48%, rgba(234, 88, 12, 0.035) 49%, transparent 50%);
+    background-size: 22px 22px, 260px 150px, 260px 150px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .site-header {
-    background: #ffffff;
-    border-bottom: 1px solid #e2e8f0;
     position: sticky;
     top: 0;
-    z-index: 50;
+    z-index: 60;
+    background:
+      linear-gradient(180deg, rgba(235, 239, 243, 0.98), rgba(229, 234, 239, 0.96)),
+      radial-gradient(circle at 1px 1px, rgba(71, 85, 105, 0.09) 1px, transparent 1.1px);
+    background-size: auto, 20px 20px;
+    border-bottom: 1px solid #cbd3dc;
+    backdrop-filter: blur(14px);
   }
 
   .header-inner {
-    max-width: 1040px;
-    margin: auto;
-    padding: 12px 20px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 13px 22px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    gap: 20px;
   }
 
   .brand {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 11px;
+    color: #101828;
     text-decoration: none;
   }
 
   .brand-mark {
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
     display: grid;
     place-items: center;
-    background: #ea580c;
-    color: white;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 800;
-  }
-
-  .brand-text strong {
-    color: #0f172a;
-    font-size: 15px;
-  }
-
-  .main-container {
-    max-width: 1040px;
-    margin: 0 auto;
-    padding: 24px 20px 48px;
-  }
-
-  .hero-strip {
-    text-align: center;
-    padding: 16px 0 28px;
-  }
-
-  .pill-badge {
-    display: inline-block;
-    padding: 3px 10px;
-    background: #fff7ed;
-    border: 1px solid #ffedd5;
-    color: #ea580c;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.05em;
-    margin-bottom: 10px;
-  }
-
-  h1 {
-    font-size: clamp(26px, 4vw, 36px);
-    font-weight: 800;
-    color: #0f172a;
-    margin: 0 0 6px;
-    letter-spacing: -0.02em;
-  }
-
-  .hero-sub {
-    font-size: 15px;
-    color: #64748b;
-    margin: 0 auto;
-    max-width: 580px;
-  }
-
-  .deck-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-  }
-
-  .deck-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    transition: all 0.2s ease;
-  }
-
-  .deck-card:hover {
-    border-color: #ea580c;
-    box-shadow: 0 4px 12px rgba(234, 88, 12, 0.08);
-  }
-
-  .card-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-
-  .category {
-    color: #ea580c;
-    font-size: 11px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  .source {
-    font-size: 11px;
-    color: #64748b;
-    background: #f1f5f9;
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
-
-  .deck-card h2 {
-    font-size: 17px;
-    line-height: 1.3;
-    margin: 0 0 8px;
-    font-weight: 700;
-  }
-
-  .deck-card h2 a {
-    text-decoration: none;
-    color: #0f172a;
-  }
-
-  .deck-card h2 a:hover {
-    color: #ea580c;
-  }
-
-  .summary {
-    font-size: 13px;
-    color: #64748b;
-    margin: 0 0 16px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    border-radius: 9px;
+    background: #172033;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.12);
     overflow: hidden;
   }
 
-  .card-action {
-    padding-top: 10px;
-    border-top: 1px solid #f1f5f9;
-  }
+  .brand-mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .brand-mark.small { width: 30px; height: 30px; border-radius: 7px; }
+  .brand-text { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; }
 
-  .view-btn {
-    color: #ea580c;
+  .top-nav { display: flex; align-items: center; gap: 26px; }
+  .top-nav a {
+    color: #475569;
     font-size: 13px;
     font-weight: 700;
     text-decoration: none;
+    padding: 8px 0;
+    border-bottom: 2px solid transparent;
+  }
+  .top-nav a:hover, .top-nav a.is-active { color: #ea580c; border-bottom-color: #ea580c; }
+
+  .main-container { max-width: 1180px; margin: 0 auto; padding: 34px 22px 58px; }
+
+  .hero-strip { text-align: center; padding: 16px 0 32px; }
+  .pill-badge {
+    display: inline-flex;
+    padding: 5px 14px;
+    color: #ea580c;
+    border: 1px solid #f3a36e;
+    background: rgba(255, 247, 237, 0.72);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    margin-bottom: 15px;
   }
 
-  .state-box {
-    text-align: center;
-    padding: 40px;
-    background: #ffffff;
-    border-radius: 10px;
-    border: 1px dashed #cbd5e1;
-    color: #64748b;
+  h1 {
+    margin: 0 0 10px;
+    color: #101828;
+    font-size: clamp(32px, 5vw, 48px);
+    line-height: 1.05;
+    font-weight: 900;
+    letter-spacing: -0.045em;
   }
+
+  .hero-sub { margin: 0 auto; max-width: 690px; color: #667085; font-size: 15px; }
+  .hero-stats { margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 14px; color: #667085; font-size: 13px; }
+  .hero-stats strong { color: #ea580c; font-size: 16px; }
+  .stat-divider { width: 1px; height: 17px; background: #cbd5e1; }
+
+  .state-box, .filter-empty {
+    background: rgba(247, 249, 251, 0.9);
+    border: 1px solid #cdd5de;
+    border-radius: 14px;
+    padding: 28px;
+    text-align: center;
+    color: #667085;
+  }
+
+  .filter-bar {
+    position: sticky;
+    top: 65px;
+    z-index: 45;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 290px);
+    gap: 18px;
+    align-items: end;
+    margin-bottom: 18px;
+    padding: 16px 18px;
+    background: rgba(241, 244, 247, 0.94);
+    border: 1px solid #cbd3dc;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.055);
+    backdrop-filter: blur(12px);
+  }
+
+  .filter-label { margin-bottom: 9px; color: #64748b; font-size: 10px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+  .filter-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+  .filter-scroll::-webkit-scrollbar { display: none; }
+
+  .filter-chip {
+    flex: 0 0 auto;
+    appearance: none;
+    border: 1px solid #cbd3dc;
+    background: #f8fafc;
+    color: #475569;
+    border-radius: 999px;
+    padding: 8px 13px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 750;
+    cursor: pointer;
+    transition: 0.18s ease;
+  }
+  .filter-chip:hover { border-color: #fb923c; color: #c2410c; }
+  .filter-chip.is-active { border-color: #ea580c; background: #ea580c; color: #fff; box-shadow: 0 5px 12px rgba(234, 88, 12, 0.18); }
+
+  .search-box {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    background: #edf1f4;
+    border: 1px solid #cbd3dc;
+    border-radius: 10px;
+  }
+  .search-box input { width: 100%; border: 0; outline: 0; background: transparent; color: #172033; font: inherit; font-size: 12px; }
+  .search-box input::placeholder { color: #8b97a8; }
+  .search-box svg { width: 17px; height: 17px; fill: none; stroke: #667085; stroke-width: 1.8; }
+
+  .update-section {
+    margin-bottom: 18px;
+    padding: 18px;
+    background: rgba(238, 242, 245, 0.86);
+    border: 1px solid #cbd3dc;
+    border-radius: 16px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+    backdrop-filter: blur(5px);
+  }
+
+  .today-section { background: rgba(235, 239, 243, 0.9); }
+  .section-heading { margin-bottom: 14px; display: flex; justify-content: space-between; align-items: end; gap: 12px; }
+  .section-heading-inline { align-items: center; }
+  .section-kicker { display: block; color: #ea580c; font-size: 10px; font-weight: 900; letter-spacing: 0.11em; }
+  .section-heading h2 { margin: 2px 0 0; color: #172033; font-size: 22px; line-height: 1.15; letter-spacing: -0.025em; }
+  .section-count, .date-context { color: #667085; font-size: 11px; font-weight: 700; }
+  .inline-date-heading { display: flex; align-items: center; gap: 12px; }
+
+  .today-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(310px, 1fr); gap: 14px; }
+
+  .featured-card {
+    min-height: 320px;
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 215px;
+    gap: 8px;
+    padding: 20px;
+    background: linear-gradient(145deg, #f6f8fa 0%, #eef1f4 100%);
+    border: 1px solid #cbd3dc;
+    border-radius: 13px;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  }
+
+  .featured-copy { position: relative; z-index: 2; display: flex; flex-direction: column; }
+  .featured-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
+  .category { color: #ea580c; font-size: 10px; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase; }
+  .source { flex: 0 0 auto; padding: 3px 7px; background: #e4e9ee; color: #607087; border-radius: 5px; font-size: 10px; }
+  .featured-label { color: #7c8ba0; font-size: 10px; font-weight: 900; letter-spacing: 0.09em; }
+
+  .featured-card h3 { margin: 8px 0 10px; max-width: 600px; font-size: clamp(24px, 3vw, 34px); line-height: 1.08; letter-spacing: -0.035em; }
+  .featured-card h3 a, .deck-card h3 a, .mini-card h3 a { color: #101828; text-decoration: none; }
+  .featured-card h3 a:hover, .deck-card h3 a:hover, .mini-card h3 a:hover { color: #c2410c; }
+  .featured-card p { margin: 0; max-width: 620px; color: #5f6f84; font-size: 13px; line-height: 1.65; }
+
+  .featured-footer { margin-top: auto; padding-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .featured-meta { display: flex; flex-wrap: wrap; gap: 12px; color: #667085; font-size: 11px; }
+  .featured-meta strong, .mini-footer strong, .card-footer strong, .card-inline-meta strong { color: #ea580c; }
+  .primary-btn { padding: 9px 14px; border-radius: 8px; background: #ea580c; color: #fff; text-decoration: none; font-size: 12px; font-weight: 850; box-shadow: 0 6px 14px rgba(234, 88, 12, 0.18); }
+  .primary-btn:hover { background: #c2410c; }
+
+  .feature-art { position: relative; min-height: 100%; }
+  .feature-wave {
+    position: absolute;
+    inset: 16% -22% -14% -36%;
+    opacity: 0.78;
+    background-image: radial-gradient(circle, rgba(234, 88, 12, 0.65) 1.2px, transparent 1.4px);
+    background-size: 10px 10px;
+    transform: rotate(-8deg) skewY(-7deg);
+    mask-image: radial-gradient(ellipse at center, black 0 52%, transparent 72%);
+  }
+  .feature-badge {
+    position: absolute;
+    right: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 76px;
+    height: 76px;
+    display: grid;
+    place-items: center;
+    border-radius: 15px;
+    background: rgba(244, 247, 249, 0.9);
+    border: 1px solid #f4ad7b;
+    color: #ea580c;
+    font-size: 29px;
+    font-weight: 900;
+    box-shadow: 0 12px 28px rgba(234, 88, 12, 0.12);
+  }
+
+  .today-side-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .mini-card, .deck-card {
+    background: linear-gradient(180deg, #f5f7f9 0%, #eef1f4 100%);
+    border: 1px solid #cdd5de;
+    border-radius: 11px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.035);
+    transition: 0.18s ease;
+  }
+  .mini-card:hover, .deck-card:hover { border-color: #f3a36e; transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15, 23, 42, 0.055); }
+  .mini-card { min-height: 150px; padding: 14px; display: flex; flex-direction: column; }
+  .mini-topline { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+  .mini-topline a { color: #ea580c; text-decoration: none; font-size: 14px; }
+  .mini-card h3 { margin: 10px 0 5px; font-size: 15px; line-height: 1.25; letter-spacing: -0.02em; }
+  .mini-source { color: #718096; font-size: 11px; }
+  .mini-footer { margin-top: auto; padding-top: 10px; display: flex; justify-content: space-between; gap: 8px; color: #667085; font-size: 10px; }
+
+  .today-more { margin-top: 12px; }
+  .deck-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .deck-card { min-height: 205px; padding: 15px; display: flex; flex-direction: column; justify-content: space-between; }
+  .card-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .deck-card h3 { margin: 0 0 7px; font-size: 15px; line-height: 1.28; letter-spacing: -0.02em; }
+  .summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 10px 0 0; color: #667085; font-size: 11px; line-height: 1.55; }
+  .card-inline-meta, .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #667085; font-size: 10px; }
+  .card-inline-meta { margin-top: 10px; justify-content: flex-start; gap: 14px; }
+  .card-footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid #d8dee5; }
+  .text-link { margin-top: 16px; color: #ea580c; text-decoration: none; font-size: 11px; font-weight: 850; }
+  .text-link:hover { color: #c2410c; }
+
+  .empty-today { padding: 24px; color: #667085; background: #edf1f4; border: 1px dashed #c5ced8; border-radius: 11px; display: flex; flex-direction: column; gap: 3px; }
 
   .site-footer {
-    max-width: 1040px;
-    margin: auto;
-    padding: 16px 20px 32px;
-    border-top: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    color: #94a3b8;
-    font-size: 12px;
+    border-top: 1px solid #cbd3dc;
+    background:
+      linear-gradient(180deg, rgba(231, 236, 241, 0.96), rgba(224, 230, 235, 0.98)),
+      radial-gradient(circle at 1px 1px, rgba(71, 85, 105, 0.09) 1px, transparent 1.1px);
+    background-size: auto, 20px 20px;
+  }
+  .footer-inner { max-width: 1180px; margin: 0 auto; padding: 28px 22px; display: flex; justify-content: space-between; gap: 30px; align-items: end; }
+  .footer-brand p, .footer-note { margin: 10px 0 0; color: #667085; font-size: 11px; }
+  .footer-note { max-width: 320px; text-align: right; }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 900px) {
+    .today-layout { grid-template-columns: 1fr; }
+    .featured-card { grid-template-columns: 1fr 160px; }
+    .deck-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .filter-bar { grid-template-columns: 1fr; }
+    .search-box { max-width: none; }
   }
 
-  @media (max-width: 600px) {
-    .deck-grid {
-      grid-template-columns: 1fr;
-    }
+  @media (max-width: 640px) {
+    .header-inner { padding: 11px 15px; }
+    .top-nav { display: none; }
+    .main-container { padding: 24px 14px 42px; }
+    .hero-strip { padding-top: 8px; }
+    .filter-bar { top: 59px; padding: 14px; }
+    .update-section { padding: 14px; }
+    .today-side-grid, .deck-grid { grid-template-columns: 1fr; }
+    .featured-card { min-height: 0; grid-template-columns: 1fr; }
+    .feature-art { display: none; }
+    .featured-footer { align-items: flex-start; flex-direction: column; }
+    .section-heading { align-items: flex-start; }
+    .footer-inner { align-items: flex-start; flex-direction: column; }
+    .footer-note { text-align: left; }
   }
 </style>
