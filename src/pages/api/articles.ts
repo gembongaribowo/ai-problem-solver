@@ -2,12 +2,13 @@ import type { APIRoute } from 'astro';
 
 type ArticleInput = Record<string, unknown>;
 type SqlValue = string | number | null;
+type D1BoundStatement = object;
 type D1PreparedStatement = {
-  bind(...values: SqlValue[]): unknown;
+  bind(...values: SqlValue[]): D1BoundStatement;
 };
 type D1DatabaseBinding = {
   prepare(sql: string): D1PreparedStatement;
-  batch(statements: unknown[]): Promise<unknown[]>;
+  batch(statements: D1BoundStatement[]): Promise<unknown[]>;
 };
 type RuntimeEnv = {
   DB?: D1DatabaseBinding;
@@ -62,7 +63,7 @@ function jsonText(value: unknown): string | null {
   return JSON.stringify(value);
 }
 
-function toStatement(db: D1DatabaseBinding, article: ArticleInput): unknown | Response {
+function toStatement(db: D1DatabaseBinding, article: ArticleInput): D1BoundStatement | Response {
   const sourceUrl = nullableText(article.source_url);
   if (!sourceUrl) {
     return jsonResponse({ ok: false, error: 'Each article must include source_url.' }, 400);
@@ -152,7 +153,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 
-  const statements: unknown[] = [];
+  const statements: D1BoundStatement[] = [];
   for (const rawArticle of rawArticles) {
     if (!rawArticle || typeof rawArticle !== 'object' || Array.isArray(rawArticle)) {
       return jsonResponse({ ok: false, error: 'Each article must be a JSON object.' }, 400);
