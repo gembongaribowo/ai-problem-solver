@@ -5,7 +5,7 @@ export type ArticleRecord = {
   slug?: string | null;
   status?: string;
   published_at?: string | null;
-  [key: string]: unknown;
+  [key: string]: any;
 };
 
 type D1Result<T> = {
