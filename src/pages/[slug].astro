@@ -168,6 +168,151 @@ const hasSecondaryOutcomes =
   Array.isArray(performance.secondary_outcomes) &&
   performance.secondary_outcomes.length > 0;
 ---
+import { getPublishedArticleBySlug, type ArticleRuntimeEnv } from "../lib/articles";
+
+const runtimeEnv = Astro.locals.runtime.env as ArticleRuntimeEnv;
+const { slug } = Astro.params;
+const { data: article, error } = await getPublishedArticleBySlug(runtimeEnv, slug ?? "");
+
+if (error || !article) {
+  console.error("Article not found:", error);
+  return Astro.redirect("/");
+}
+
+
+/* =========================================================
+   CONTENT FORMAT DETECTION
+   ========================================================= */
+
+let structuredContent = null;
+
+if (article.content && typeof article.content === "object") {
+  structuredContent = article.content;
+}
+
+if (article.content && typeof article.content === "string") {
+  const trimmedContent = article.content.trim();
+
+  if (
+    trimmedContent.startsWith("{") &&
+    trimmedContent.endsWith("}")
+  ) {
+    try {
+      const parsed = JSON.parse(trimmedContent);
+
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+      ) {
+        structuredContent = parsed;
+      }
+    } catch {
+      structuredContent = null;
+    }
+  }
+}
+
+
+/* =========================================================
+   DETERMINE ARTICLE TYPE
+   ========================================================= */
+
+const isStructuredArticle = Boolean(
+  structuredContent &&
+    (
+      structuredContent.problem_statement ||
+      structuredContent.success_metrics ||
+      structuredContent.how_it_was_built ||
+      structuredContent.actual_performance
+    )
+);
+
+
+/* =========================================================
+   STRUCTURED ARTICLE DATA
+   ========================================================= */
+
+const problem =
+  structuredContent?.problem_statement ?? {};
+
+const metrics =
+  structuredContent?.success_metrics ?? {};
+
+const built =
+  structuredContent?.how_it_was_built ?? {};
+
+const performance =
+  structuredContent?.actual_performance ?? {};
+
+const structuredWhy =
+  structuredContent?.why_it_matters ?? {};
+
+
+/* =========================================================
+   STANDARD ARTICLE DATA
+   ========================================================= */
+
+const standardWhyItMatters =
+  typeof article.why_it_matters === "string"
+    ? article.why_it_matters
+    : typeof structuredContent?.why_it_matters === "string"
+      ? structuredContent.why_it_matters
+      : "";
+
+
+/* =========================================================
+   STRUCTURED IMPACT DATA
+   ========================================================= */
+
+const userImpact =
+  structuredWhy &&
+  typeof structuredWhy === "object"
+    ? structuredWhy.user_impact ?? ""
+    : "";
+
+const organizationalImpact =
+  structuredWhy &&
+  typeof structuredWhy === "object"
+    ? structuredWhy.business_or_organizational_impact ?? ""
+    : "";
+
+
+/* =========================================================
+   DATE
+   ========================================================= */
+
+let publishedDate = "";
+
+if (article.source_published_at) {
+  const date = new Date(article.source_published_at);
+
+  if (!Number.isNaN(date.getTime())) {
+    publishedDate = date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+}
+
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+const hasTechnicalChoices =
+  Array.isArray(built.technical_or_design_choices) &&
+  built.technical_or_design_choices.length > 0;
+
+const hasTradeoffs =
+  Array.isArray(built.constraints_or_tradeoffs) &&
+  built.constraints_or_tradeoffs.length > 0;
+
+const hasSecondaryOutcomes =
+  Array.isArray(performance.secondary_outcomes) &&
+  performance.secondary_outcomes.length > 0;
+---
 
 <!doctype html>
 
