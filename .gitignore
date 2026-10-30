@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # Private database migration exports
 .migration-data/
+
+# Local Wrangler and D1 development state
+.wrangler/
