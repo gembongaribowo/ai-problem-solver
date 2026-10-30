@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      # Build-only values: production secrets are not required for compilation.
+      # Build-only values: production secrets are never stored in CI.
       PUBLIC_SUPABASE_URL: https://example.supabase.co
       PUBLIC_SUPABASE_KEY: build-only-placeholder-key
     steps:
@@ -23,5 +23,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Validate D1 schema migrations locally
+        run: npx wrangler d1 migrations apply articles --local
       - name: Build Astro site
         run: npm run build
