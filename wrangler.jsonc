@@ -4,9 +4,9 @@
   "compatibility_date": "2026-08-08",
   "vars": {
     "SUPABASE_URL": "https://ryanckasmuyulsybcuhg.supabase.co",
-    "ARTICLES_DATA_SOURCE": "supabase",
+    "ARTICLES_DATA_SOURCE": "d1",
     "ARTICLES_D1_READY": "true",
-    "ARTICLES_DUAL_WRITE": "true"
+    "ARTICLES_DUAL_WRITE": "false"
   },
   "assets": {
     "directory": "./dist"
