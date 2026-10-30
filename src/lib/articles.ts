@@ -30,7 +30,7 @@ type D1DatabaseBinding = {
 export type ArticleRuntimeEnv = {
   DB?: D1DatabaseBinding;
   ARTICLES_DATA_SOURCE?: string;
-  D1_MIN_ARTICLE_COUNT?: string;
+  ARTICLES_D1_READY?: string;
 };
 
 type ArticleListResult = {
@@ -43,47 +43,34 @@ type ArticleResult = {
   error: unknown | null;
 };
 
-const getMinimumPublishedCount = (env: ArticleRuntimeEnv): number => {
-  const configured = Number.parseInt(env.D1_MIN_ARTICLE_COUNT ?? '577', 10);
-  return Number.isFinite(configured) && configured > 0 ? configured : 577;
-};
-
-async function isD1MigrationReady(env: ArticleRuntimeEnv): Promise<boolean> {
-  if (!env.DB || env.ARTICLES_DATA_SOURCE !== 'd1') return false;
-
-  try {
-    const result = await env.DB
-      .prepare("SELECT COUNT(*) AS count FROM articles WHERE status = ?")
-      .bind('published')
-      .first<{ count: number | string }>();
-
-    const count = Number(result?.count ?? 0);
-    return Number.isFinite(count) && count >= getMinimumPublishedCount(env);
-  } catch (error) {
-    console.error('D1 readiness check failed; falling back to Supabase.', error);
-    return false;
-  }
+function isD1Ready(runtimeEnv: ArticleRuntimeEnv): boolean {
+  return Boolean(
+    runtimeEnv.DB &&
+    runtimeEnv.ARTICLES_DATA_SOURCE === 'd1' &&
+    runtimeEnv.ARTICLES_D1_READY === 'true'
+  );
 }
 
 /**
- * Keep Supabase as the default source and rollback path until D1 has been
- * imported and explicitly enabled with ARTICLES_DATA_SOURCE=d1.
+ * D1 is selected only after an operator has verified the imported dataset
+ * and explicitly enabled ARTICLES_D1_READY=true. Supabase remains the
+ * default source and rollback path until then.
  */
 export async function listPublishedArticles(
-  env: ArticleRuntimeEnv
+  runtimeEnv: ArticleRuntimeEnv
 ): Promise<ArticleListResult> {
-  if (await isD1MigrationReady(env)) {
+  if (isD1Ready(runtimeEnv)) {
     try {
-      const result = await env.DB!
-        .prepare('SELECT * FROM articles WHERE status = ? ORDER BY published_at DESC')
+      const result = await runtimeEnv.DB!
+        .prepare('SELECT * FROM articles WHERE status = ? ORDER BY published_at DESC, id ASC')
         .bind('published')
         .all<ArticleRecord>();
 
-      if (result.success !== false && Array.isArray(result.results) && result.results.length > 0) {
-        return { data: result.results, error: null };
+      if (result.success === false) {
+        throw new Error(result.error || 'D1 query failed.');
       }
 
-      console.warn('D1 returned no published articles; falling back to Supabase.');
+      return { data: result.results ?? [], error: null };
     } catch (error) {
       console.error('D1 article query failed; falling back to Supabase.', error);
     }
@@ -99,18 +86,20 @@ export async function listPublishedArticles(
 }
 
 export async function getPublishedArticleBySlug(
-  env: ArticleRuntimeEnv,
+  runtimeEnv: ArticleRuntimeEnv,
   slug: string
 ): Promise<ArticleResult> {
-  if (slug && (await isD1MigrationReady(env))) {
+  if (isD1Ready(runtimeEnv)) {
     try {
-      const article = await env.DB!
-        .prepare('SELECT * FROM articles WHERE slug = ? AND status = ? LIMIT 1')
+      const article = await runtimeEnv.DB!
+        .prepare(
+          'SELECT * FROM articles WHERE slug = ? AND status = ? ORDER BY published_at DESC, id ASC LIMIT 1'
+        )
         .bind(slug, 'published')
         .first<ArticleRecord>();
 
-      if (article) return { data: article, error: null };
-      console.warn('Article slug was not found in D1; falling back to Supabase.');
+      // A genuine not-found result must not fall back to stale Supabase data.
+      return { data: article, error: null };
     } catch (error) {
       console.error('D1 article lookup failed; falling back to Supabase.', error);
     }
@@ -121,7 +110,10 @@ export async function getPublishedArticleBySlug(
     .select('*')
     .eq('slug', slug)
     .eq('status', 'published')
-    .single();
+    .order('published_at', { ascending: false })
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
   return { data: (data ?? null) as ArticleRecord | null, error };
 }
