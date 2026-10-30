@@ -1,7 +1,8 @@
 ---
+import { env } from 'cloudflare:workers';
 import { getPublishedArticleBySlug, type ArticleRuntimeEnv } from "../lib/articles";
 
-const runtimeEnv = Astro.locals.runtime.env as ArticleRuntimeEnv;
+const runtimeEnv = env as unknown as ArticleRuntimeEnv;
 const { slug } = Astro.params;
 const { data: article, error } = await getPublishedArticleBySlug(runtimeEnv, slug ?? "");
 
