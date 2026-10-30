@@ -59,7 +59,7 @@ npx wrangler secret put ARTICLES_WRITE_TOKEN
 
 Enter a long random token when prompted. Save the same value in your password manager and in n8n credentials. Do not commit it or put it in a `PUBLIC_*` variable.
 
-The lifecycle mutation endpoints also need server-side Supabase credentials while Supabase is active or dual-write is enabled:
+The lifecycle mutation endpoints prefer server-side Worker credentials while Supabase is active or dual-write is enabled. For backward compatibility, they temporarily fall back to the existing build-time Supabase values; move these credentials into Worker settings before removing the old build variables:
 
 ```sh
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
