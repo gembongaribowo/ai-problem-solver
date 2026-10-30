@@ -3,7 +3,10 @@
   "name": "ai-problem-solver",
   "compatibility_date": "2026-08-08",
   "vars": {
-    "SUPABASE_URL": "https://ryanckasmuyulsybcuhg.supabase.co"
+    "SUPABASE_URL": "https://ryanckasmuyulsybcuhg.supabase.co",
+    "ARTICLES_DATA_SOURCE": "supabase",
+    "ARTICLES_D1_READY": "true",
+    "ARTICLES_DUAL_WRITE": "true"
   },
   "assets": {
     "directory": "./dist"
