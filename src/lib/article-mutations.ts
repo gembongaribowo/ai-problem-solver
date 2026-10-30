@@ -57,8 +57,10 @@ function dualWriteEnabled(): boolean {
 }
 
 function getSupabase() {
-  const url = runtimeEnv.SUPABASE_URL;
-  const key = runtimeEnv.SUPABASE_SERVICE_ROLE_KEY;
+  // Prefer Worker runtime secrets. The build-time fallback preserves the
+  // existing deployment until those secrets are moved into Worker settings.
+  const url = runtimeEnv.SUPABASE_URL ?? import.meta.env.SUPABASE_URL;
+  const key = runtimeEnv.SUPABASE_SERVICE_ROLE_KEY ?? import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('Supabase server credentials are not configured.');
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
