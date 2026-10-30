@@ -13,8 +13,17 @@ const articles = JSON.parse(await readFile(inputPath, 'utf8'));
 if (!Array.isArray(articles)) {
   throw new Error('The import file must contain a JSON array of articles.');
 }
+if (articles.some((article) => !article || typeof article !== 'object' || !article.id || !article.source_url)) {
+  throw new Error('Every exported article must have a stable id and source_url.');
+}
+
+const ids = new Set(articles.map((article) => article.id));
+if (ids.size !== articles.length) {
+  throw new Error('The import file contains duplicate article IDs.');
+}
 
 const batchSize = 5;
+let imported = 0;
 
 for (let offset = 0; offset < articles.length; offset += batchSize) {
   const batch = articles.slice(offset, offset + batchSize);
@@ -45,7 +54,8 @@ for (let offset = 0; offset < articles.length; offset += batchSize) {
     throw new Error(`Unexpected D1 import response: ${responseText.slice(0, 500)}`);
   }
 
-  console.log(`Imported ${Math.min(offset + batch.length, articles.length)} / ${articles.length}`);
+  imported += result.upserted;
+  console.log(`Imported ${imported} / ${articles.length}`);
 }
 
-console.log('Import complete. Re-running is safe because rows are upserted by source_url.');
+console.log(`Import complete: ${imported} records. Re-running is safe because rows are upserted by id.`);
