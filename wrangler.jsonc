@@ -2,6 +2,9 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "ai-problem-solver",
   "compatibility_date": "2026-08-08",
+  "vars": {
+    "SUPABASE_URL": "https://ryanckasmuyulsybcuhg.supabase.co"
+  },
   "assets": {
     "directory": "./dist"
   },
