@@ -22,3 +22,9 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Private database migration exports
+.migration-data/
+
+# Local Wrangler and D1 development state
+.wrangler/

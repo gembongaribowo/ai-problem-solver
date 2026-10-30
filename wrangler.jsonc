@@ -4,5 +4,13 @@
   "compatibility_date": "2026-08-08",
   "assets": {
     "directory": "./dist"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "articles",
+      "database_id": "c49152f9-0560-442d-a64f-90a193e53fbf",
+      "migrations_dir": "migrations/d1"
+    }
+  ]
 }

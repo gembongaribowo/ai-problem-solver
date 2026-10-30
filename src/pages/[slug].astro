@@ -1,39 +1,15 @@
 ---
-import { supabase } from "../lib/supabase";
+import { env } from 'cloudflare:workers';
+import { getPublishedArticleBySlug, type ArticleRuntimeEnv } from "../lib/articles";
 
-export async function getStaticPaths() {
-  const { data: articles, error } = await supabase
-    .from("articles")
-    .select("slug")
-    .eq("status", "published")
-    .not("slug", "is", null);
-
-  if (error) {
-    console.error("Failed to load article paths:", error);
-    return [];
-  }
-
-  return (articles ?? []).map((article) => ({
-    params: {
-      slug: article.slug,
-    },
-  }));
-}
-
+const runtimeEnv = env as unknown as ArticleRuntimeEnv;
 const { slug } = Astro.params;
-
-const { data: article, error } = await supabase
-  .from("articles")
-  .select("*")
-  .eq("slug", slug)
-  .eq("status", "published")
-  .single();
+const { data: article, error } = await getPublishedArticleBySlug(runtimeEnv, slug ?? "");
 
 if (error || !article) {
   console.error("Article not found:", error);
   return Astro.redirect("/");
 }
-
 
 /* =========================================================
    CONTENT FORMAT DETECTION

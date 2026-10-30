@@ -1,12 +1,9 @@
 ---
-import { supabase } from '../lib/supabase';
+import { env } from 'cloudflare:workers';
+import { listPublishedArticles, type ArticleRuntimeEnv } from '../lib/articles';
 
-const { data: articles, error } = await supabase
-  .from('articles')
-  .select('*')
-  .eq('status', 'published')
-  .order('published_at', { ascending: false });
-
+const runtimeEnv = env as unknown as ArticleRuntimeEnv;
+const { data: articles, error } = await listPublishedArticles(runtimeEnv);
 const allArticles = articles ?? [];
 
 const jakartaDateKey = (value) => {
