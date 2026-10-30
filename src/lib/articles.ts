@@ -43,6 +43,28 @@ type ArticleResult = {
   error: unknown | null;
 };
 
+/**
+ * Public article fields used by the homepage and article detail pages.
+ * Keep editorial/internal fields (validation, review_status, updated_at)
+ * out of both the public Supabase and D1 read paths.
+ */
+const PUBLIC_ARTICLE_COLUMNS = [
+  'id',
+  'status',
+  'source_name',
+  'source_url',
+  'source_title',
+  'source_published_at',
+  'score',
+  'slug',
+  'published_at',
+  'category',
+  'content',
+  'title',
+  'summary',
+  'why_it_matters',
+].join(', ');
+
 function isD1Ready(runtimeEnv: ArticleRuntimeEnv): boolean {
   return Boolean(
     runtimeEnv.DB &&
@@ -62,7 +84,9 @@ export async function listPublishedArticles(
   if (isD1Ready(runtimeEnv)) {
     try {
       const result = await runtimeEnv.DB!
-        .prepare('SELECT * FROM articles WHERE status = ? ORDER BY published_at DESC, id ASC')
+        .prepare(
+          `SELECT ${PUBLIC_ARTICLE_COLUMNS} FROM articles WHERE status = ? ORDER BY published_at DESC, id ASC`
+        )
         .bind('published')
         .all<ArticleRecord>();
 
@@ -78,7 +102,7 @@ export async function listPublishedArticles(
 
   const { data, error } = await supabase
     .from('articles')
-    .select('*')
+    .select(PUBLIC_ARTICLE_COLUMNS)
     .eq('status', 'published')
     .order('published_at', { ascending: false });
 
@@ -93,7 +117,7 @@ export async function getPublishedArticleBySlug(
     try {
       const article = await runtimeEnv.DB!
         .prepare(
-          'SELECT * FROM articles WHERE slug = ? AND status = ? ORDER BY published_at DESC, id ASC LIMIT 1'
+          `SELECT ${PUBLIC_ARTICLE_COLUMNS} FROM articles WHERE slug = ? AND status = ? ORDER BY published_at DESC, id ASC LIMIT 1`
         )
         .bind(slug, 'published')
         .first<ArticleRecord>();
@@ -107,7 +131,7 @@ export async function getPublishedArticleBySlug(
 
   const { data, error } = await supabase
     .from('articles')
-    .select('*')
+    .select(PUBLIC_ARTICLE_COLUMNS)
     .eq('slug', slug)
     .eq('status', 'published')
     .order('published_at', { ascending: false })
