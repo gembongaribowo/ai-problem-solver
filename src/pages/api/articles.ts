@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 
 type ArticleInput = Record<string, unknown>;
 type SqlValue = string | number | null;
@@ -24,9 +25,10 @@ const UPSERT_SQL = `
     score, validation, review_status, slug, published_at, updated_at,
     category, content, title, summary, why_it_matters
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(source_url) DO UPDATE SET
+  ON CONFLICT(id) DO UPDATE SET
     status = excluded.status,
     source_name = excluded.source_name,
+    source_url = excluded.source_url,
     source_title = excluded.source_title,
     source_published_at = excluded.source_published_at,
     score = excluded.score,
@@ -54,16 +56,22 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
 
 function nullableText(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
-  return typeof value === 'string' ? value : String(value);
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
 }
 
 function jsonText(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
-  if (typeof value === 'string') return value;
-  return JSON.stringify(value);
+  return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
 function toStatement(db: D1DatabaseBinding, article: ArticleInput): D1BoundStatement | Response {
+  const id = nullableText(article.id);
+  if (!id) {
+    return jsonResponse({ ok: false, error: 'Each article must include its stable id.' }, 400);
+  }
+
   const sourceUrl = nullableText(article.source_url);
   if (!sourceUrl) {
     return jsonResponse({ ok: false, error: 'Each article must include source_url.' }, 400);
@@ -89,7 +97,7 @@ function toStatement(db: D1DatabaseBinding, article: ArticleInput): D1BoundState
   }
 
   return db.prepare(UPSERT_SQL).bind(
-    nullableText(article.id) ?? crypto.randomUUID(),
+    id,
     nullableText(article.status) ?? 'draft',
     nullableText(article.source_name),
     sourceUrl,
@@ -109,9 +117,9 @@ function toStatement(db: D1DatabaseBinding, article: ArticleInput): D1BoundState
   );
 }
 
-export const POST: APIRoute = async ({ request, locals }) => {
-  const env = (locals as unknown as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
-  const expectedToken = env?.ARTICLES_WRITE_TOKEN;
+export const POST: APIRoute = async ({ request }) => {
+  const runtimeEnv = env as unknown as RuntimeEnv;
+  const expectedToken = runtimeEnv.ARTICLES_WRITE_TOKEN;
 
   if (!expectedToken) {
     return jsonResponse({ ok: false, error: 'Article write endpoint is not configured.' }, 503);
@@ -121,7 +129,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return jsonResponse({ ok: false, error: 'Unauthorized.' }, 401);
   }
 
-  if (!env?.DB) {
+  if (!runtimeEnv.DB) {
     return jsonResponse({ ok: false, error: 'D1 database binding is not configured.' }, 503);
   }
 
@@ -159,13 +167,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return jsonResponse({ ok: false, error: 'Each article must be a JSON object.' }, 400);
     }
 
-    const statement = toStatement(env.DB, rawArticle as ArticleInput);
+    const statement = toStatement(runtimeEnv.DB, rawArticle as ArticleInput);
     if (statement instanceof Response) return statement;
     statements.push(statement);
   }
 
   try {
-    await env.DB.batch(statements);
+    await runtimeEnv.DB.batch(statements);
     return jsonResponse({ ok: true, upserted: statements.length });
   } catch (error) {
     console.error('Failed to upsert articles into D1.', error);
