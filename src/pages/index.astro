@@ -1,7 +1,8 @@
 ---
+import { env } from 'cloudflare:workers';
 import { listPublishedArticles, type ArticleRuntimeEnv } from '../lib/articles';
 
-const runtimeEnv = Astro.locals.runtime.env as ArticleRuntimeEnv;
+const runtimeEnv = env as unknown as ArticleRuntimeEnv;
 const { data: articles, error } = await listPublishedArticles(runtimeEnv);
 const allArticles = articles ?? [];
 
