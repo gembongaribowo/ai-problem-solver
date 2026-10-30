@@ -20,6 +20,8 @@ type RuntimeEnv = {
   ARTICLES_DATA_SOURCE?: string;
   ARTICLES_D1_READY?: string;
   ARTICLES_DUAL_WRITE?: string;
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
 };
 type ArticleMutationRow = {
   id: string;
@@ -55,8 +57,8 @@ function dualWriteEnabled(): boolean {
 }
 
 function getSupabase() {
-  const url = import.meta.env.SUPABASE_URL;
-  const key = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = runtimeEnv.SUPABASE_URL;
+  const key = runtimeEnv.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('Supabase server credentials are not configured.');
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -230,7 +232,7 @@ export async function publishArticle(id: string): Promise<MutationResult> {
       const slug = current.slug || makeSlug(current.title);
       const publishedAt = current.published_at || new Date().toISOString();
 
-      if (current.status !== 'published') {
+      if (current.status !== 'published' || current.slug !== slug || !current.published_at) {
         await updateD1PublishedState(id, slug, publishedAt);
       }
       if (dualWriteEnabled()) await mirrorPublishedStateToSupabase(id, slug, publishedAt);
@@ -258,7 +260,7 @@ export async function publishArticle(id: string): Promise<MutationResult> {
     const slug = current.slug || makeSlug(current.title);
     const publishedAt = current.published_at || new Date().toISOString();
 
-    if (current.status !== 'published') {
+    if (current.status !== 'published' || current.slug !== slug || !current.published_at) {
       const { error: updateError } = await supabase
         .from('articles')
         .update({
