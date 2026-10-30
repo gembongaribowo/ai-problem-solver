@@ -74,8 +74,8 @@ function failure(status: number, error: string): MutationFailure {
 async function updateD1ReviewStatus(id: string, status: string): Promise<void> {
   if (!runtimeEnv.DB) throw new Error('D1 database binding is not configured.');
   const result = await runtimeEnv.DB
-    .prepare('UPDATE articles SET review_status = ?, updated_at = ? WHERE id = ?')
-    .bind(status, new Date().toISOString(), id)
+    .prepare("UPDATE articles SET review_status = ?, updated_at = ? WHERE id = ? AND (review_status = 'pending' OR review_status = ?)")
+    .bind(status, new Date().toISOString(), id, status)
     .run();
 
   if (result.success === false) throw new Error(result.error || 'D1 review update failed.');
@@ -145,11 +145,15 @@ export async function updateArticleReviewStatus(
     }
 
     if (current.review_status !== targetStatus) {
-      const { error: updateError } = await supabase
+      const { data: updated, error: updateError } = await supabase
         .from('articles')
         .update({ review_status: targetStatus, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('review_status', 'pending')
+        .select('id')
+        .maybeSingle();
       if (updateError) return failure(500, updateError.message);
+      if (!updated) return failure(409, 'Article review status changed concurrently. Please retry.');
     }
 
     if (dualWriteEnabled()) await updateD1ReviewStatus(id, targetStatus);
@@ -180,7 +184,7 @@ async function updateD1PublishedState(id: string, slug: string, publishedAt: str
   if (!runtimeEnv.DB) throw new Error('D1 database binding is not configured.');
   const result = await runtimeEnv.DB
     .prepare(
-      "UPDATE articles SET status = 'published', slug = ?, published_at = ?, updated_at = ? WHERE id = ?"
+      "UPDATE articles SET status = 'published', slug = ?, published_at = ?, updated_at = ? WHERE id = ? AND review_status = 'approved' AND status IN ('draft', 'published')"
     )
     .bind(slug, publishedAt, publishedAt, id)
     .run();
@@ -263,7 +267,7 @@ export async function publishArticle(id: string): Promise<MutationResult> {
     const publishedAt = current.published_at || new Date().toISOString();
 
     if (current.status !== 'published' || current.slug !== slug || !current.published_at) {
-      const { error: updateError } = await supabase
+      let updateQuery = supabase
         .from('articles')
         .update({
           status: 'published',
@@ -271,11 +275,15 @@ export async function publishArticle(id: string): Promise<MutationResult> {
           published_at: publishedAt,
           updated_at: publishedAt,
         })
-        .eq('id', id)
-        .eq('review_status', 'approved')
-        .eq('status', 'draft');
+        .eq('id', id);
 
+      if (current.status !== 'published') {
+        updateQuery = updateQuery.eq('review_status', 'approved').eq('status', 'draft');
+      }
+
+      const { data: updated, error: updateError } = await updateQuery.select('id').maybeSingle();
       if (updateError) return failure(500, updateError.message);
+      if (!updated) return failure(409, 'Article publishing state changed concurrently. Please retry.');
     }
 
     if (dualWriteEnabled()) await updateD1PublishedState(id, slug, publishedAt);
