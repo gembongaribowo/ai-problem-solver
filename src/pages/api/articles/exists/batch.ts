@@ -15,9 +15,9 @@ type RuntimeEnv = {
   ARTICLES_WRITE_TOKEN?: string;
 };
 
-const MAX_URLS = 500;
+const MAX_URLS = 1000;
 const MAX_URL_LENGTH = 4096;
-const MAX_BODY_BYTES = 256 * 1024;
+const MAX_BODY_BYTES = 1024 * 1024;
 const D1_PARAMETER_CHUNK_SIZE = 100;
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
