@@ -1,5 +1,3 @@
-import { supabase } from './supabase';
-
 export type ArticleRecord = {
   id?: string;
   slug?: string | null;
@@ -46,7 +44,7 @@ type ArticleResult = {
 /**
  * Public article fields used by the homepage and article detail pages.
  * Keep editorial/internal fields (validation, review_status, updated_at)
- * out of both the public Supabase and D1 read paths.
+ * out of the D1 read paths.
  */
 const PUBLIC_ARTICLE_COLUMNS = [
   'id',
@@ -73,71 +71,65 @@ function isD1Ready(runtimeEnv: ArticleRuntimeEnv): boolean {
   );
 }
 
+function d1UnavailableError(runtimeEnv: ArticleRuntimeEnv): Error {
+  if (!runtimeEnv.DB) {
+    return new Error('D1 database binding is not configured.');
+  }
+  if (runtimeEnv.ARTICLES_DATA_SOURCE !== 'd1') {
+    return new Error('D1 is not configured as the article data source.');
+  }
+  return new Error('D1 is selected but ARTICLES_D1_READY is not true.');
+}
+
 /**
- * D1 is selected only after an operator has verified the imported dataset
- * and explicitly enabled ARTICLES_D1_READY=true. Supabase remains the
- * default source and rollback path until then.
+ * D1 is the only article read source. Fail explicitly when it is unavailable
+ * so an outage cannot silently serve stale data from another database.
  */
 export async function listPublishedArticles(
   runtimeEnv: ArticleRuntimeEnv
 ): Promise<ArticleListResult> {
-  if (isD1Ready(runtimeEnv)) {
-    try {
-      const result = await runtimeEnv.DB!
-        .prepare(
-          `SELECT ${PUBLIC_ARTICLE_COLUMNS} FROM articles WHERE status = ? ORDER BY published_at DESC, id ASC`
-        )
-        .bind('published')
-        .all<ArticleRecord>();
-
-      if (result.success === false) {
-        throw new Error(result.error || 'D1 query failed.');
-      }
-
-      return { data: result.results ?? [], error: null };
-    } catch (error) {
-      console.error('D1 article query failed; falling back to Supabase.', error);
-    }
+  if (!isD1Ready(runtimeEnv)) {
+    return { data: [], error: d1UnavailableError(runtimeEnv) };
   }
 
-  const { data, error } = await supabase
-    .from('articles')
-    .select(PUBLIC_ARTICLE_COLUMNS)
-    .eq('status', 'published')
-    .order('published_at', { ascending: false });
+  try {
+    const result = await runtimeEnv.DB!
+      .prepare(
+        `SELECT ${PUBLIC_ARTICLE_COLUMNS} FROM articles WHERE status = ? ORDER BY published_at DESC, id ASC`
+      )
+      .bind('published')
+      .all<ArticleRecord>();
 
-  return { data: (data ?? []) as ArticleRecord[], error };
+    if (result.success === false) {
+      throw new Error(result.error || 'D1 query failed.');
+    }
+
+    return { data: result.results ?? [], error: null };
+  } catch (error) {
+    console.error('D1 article query failed.', error);
+    return { data: [], error };
+  }
 }
 
 export async function getPublishedArticleBySlug(
   runtimeEnv: ArticleRuntimeEnv,
   slug: string
 ): Promise<ArticleResult> {
-  if (isD1Ready(runtimeEnv)) {
-    try {
-      const article = await runtimeEnv.DB!
-        .prepare(
-          `SELECT ${PUBLIC_ARTICLE_COLUMNS} FROM articles WHERE slug = ? AND status = ? ORDER BY published_at DESC, id ASC LIMIT 1`
-        )
-        .bind(slug, 'published')
-        .first<ArticleRecord>();
-
-      // A genuine not-found result must not fall back to stale Supabase data.
-      return { data: article, error: null };
-    } catch (error) {
-      console.error('D1 article lookup failed; falling back to Supabase.', error);
-    }
+  if (!isD1Ready(runtimeEnv)) {
+    return { data: null, error: d1UnavailableError(runtimeEnv) };
   }
 
-  const { data, error } = await supabase
-    .from('articles')
-    .select(PUBLIC_ARTICLE_COLUMNS)
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .order('published_at', { ascending: false })
-    .order('id', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  try {
+    const article = await runtimeEnv.DB!
+      .prepare(
+        `SELECT ${PUBLIC_ARTICLE_COLUMNS} FROM articles WHERE slug = ? AND status = ? ORDER BY published_at DESC, id ASC LIMIT 1`
+      )
+      .bind(slug, 'published')
+      .first<ArticleRecord>();
 
-  return { data: (data ?? null) as ArticleRecord | null, error };
+    return { data: article, error: null };
+  } catch (error) {
+    console.error('D1 article lookup failed.', error);
+    return { data: null, error };
+  }
 }
