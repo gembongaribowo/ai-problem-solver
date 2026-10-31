@@ -50,10 +50,10 @@ export const GET: APIRoute = async ({ request }) => {
   try {
     const result = await runtimeEnv.DB
       .prepare(
-        'SELECT id FROM articles WHERE status = ? AND review_status = ? ORDER BY id ASC LIMIT ?'
+        'SELECT id, status, review_status FROM articles WHERE status = ? AND review_status = ? ORDER BY id ASC LIMIT ?'
       )
       .bind('draft', 'approved', MAX_RESULTS)
-      .all<{ id: string }>();
+      .all<{ id: string; status: string; review_status: string }>();
 
     if (result.success === false) {
       throw new Error(result.error || 'D1 query failed.');
