@@ -162,6 +162,7 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const statements: D1BoundStatement[] = [];
+  const articleIds: string[] = [];
   for (const rawArticle of rawArticles) {
     if (!rawArticle || typeof rawArticle !== 'object' || Array.isArray(rawArticle)) {
       return jsonResponse({ ok: false, error: 'Each article must be a JSON object.' }, 400);
@@ -169,12 +170,23 @@ export const POST: APIRoute = async ({ request }) => {
 
     const statement = toStatement(runtimeEnv.DB, rawArticle as ArticleInput);
     if (statement instanceof Response) return statement;
+    const articleId = nullableText((rawArticle as ArticleInput).id);
+    if (!articleId) {
+      return jsonResponse({ ok: false, error: 'Each article must include its stable id.' }, 400);
+    }
+    articleIds.push(articleId);
     statements.push(statement);
   }
 
   try {
     await runtimeEnv.DB.batch(statements);
-    return jsonResponse({ ok: true, upserted: statements.length });
+    const response: Record<string, unknown> = {
+      ok: true,
+      upserted: statements.length,
+      article_ids: articleIds,
+    };
+    if (articleIds.length === 1) response.id = articleIds[0];
+    return jsonResponse(response);
   } catch (error) {
     console.error('Failed to upsert articles into D1.', error);
     return jsonResponse({ ok: false, error: 'Unable to save articles.' }, 500);
