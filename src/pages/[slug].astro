@@ -1745,14 +1745,14 @@ const hasSecondaryOutcomes =
   .site-footer { background: #FFFFFF; border-top-color: #D9D9D9; color: #555555; }
   #reading-progress { position: fixed; inset: 0 0 auto; z-index: 100; height: 3px; background: #E6E6E6; }
   #reading-progress-bar { display: block; width: 100%; height: 100%; background: #000000; transform: scaleX(0); transform-origin: left center; }
-  .scroll-reveal-ready [data-scroll-reveal] { opacity: 0; transform: translateY(18px); transition: opacity 650ms ease-out, transform 650ms ease-out; }
-  .scroll-reveal-ready [data-scroll-reveal].is-visible { opacity: 1; transform: translateY(0); }
+  :global(html.scroll-reveal-ready) [data-scroll-reveal] { opacity: 0; transform: translateY(18px); transition: opacity 650ms ease-out, transform 650ms ease-out; }
+  :global(html.scroll-reveal-ready) [data-scroll-reveal].is-visible { opacity: 1; transform: translateY(0); }
   @media (max-width: 600px) {
     .hero-card, .content-card { background: #FFFFFF; }
     .source-strip, .source-footer { border-color: #D9D9D9; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .scroll-reveal-ready [data-scroll-reveal], .scroll-reveal-ready [data-scroll-reveal].is-visible { opacity: 1; transform: none; transition: none; }
+    :global(html.scroll-reveal-ready) [data-scroll-reveal], :global(html.scroll-reveal-ready) [data-scroll-reveal].is-visible { opacity: 1; transform: none; transition: none; }
     :global(html) { scroll-behavior: auto; }
   }
 
