@@ -242,13 +242,13 @@ const countWeek = allArticles.filter((article) => {
                       <svg class="feature-illustration" viewBox="0 0 240 240" role="presentation">
                         <defs>
                           <pattern id="ai-dot-grid" width="12" height="12" patternUnits="userSpaceOnUse">
-                            <circle cx="2" cy="2" r="1" fill="#A0A0A0" />
+                            <circle cx="2" cy="2" r="1.2" fill="#333333" />
                           </pattern>
                         </defs>
-                        <rect width="240" height="240" fill="#121212" />
+                        <rect width="240" height="240" fill="#F6F6F6" />
                         <rect width="240" height="240" fill="url(#ai-dot-grid)" />
-                        <rect x="64" y="64" width="112" height="112" rx="8" fill="#1A1A1A" stroke="#333333" />
-                        <text x="120" y="139" fill="#F6F6F6" font-size="42" font-weight="700" font-family="Inter,Arial,sans-serif" text-anchor="middle" letter-spacing="-2">AI</text>
+                        <rect x="64" y="64" width="112" height="112" rx="8" fill="#000000" stroke="#000000" />
+                        <text x="120" y="139" fill="#FFFFFF" font-size="42" font-weight="700" font-family="Inter,Arial,sans-serif" text-anchor="middle" letter-spacing="-2">AI</text>
                       </svg>
                     </div>
                   </article>
@@ -459,6 +459,24 @@ const countWeek = allArticles.filter((article) => {
         searchTerm = String(event.target?.value || '').trim().toLowerCase();
         refreshCards();
       });
+
+      const revealTargets = document.querySelectorAll('.hero-strip, .filter-bar, [data-section] .section-heading, [data-card]');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if ('IntersectionObserver' in window && !reduceMotion) {
+        document.documentElement.classList.add('scroll-reveal-ready');
+        const revealObserver = new IntersectionObserver((entries, observer) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.12, rootMargin: '0px 0px -28px 0px' });
+        revealTargets.forEach((target) => {
+          target.setAttribute('data-scroll-reveal', '');
+          revealObserver.observe(target);
+        });
+      }
     </script>
   </body>
 </html>
@@ -1043,6 +1061,67 @@ const countWeek = allArticles.filter((article) => {
   @media (max-width: 640px) {
     .feature-art { display: block; order: -1; width: min(100%, 220px); max-width: 220px; aspect-ratio: 1 / 1; }
     .feature-illustration { width: 100%; height: 100%; }
+  }
+
+
+  :global(html) { color-scheme: light; background: #FFFFFF; scroll-behavior: smooth; }
+  :global(body) { background: #FFFFFF !important; color: #000000 !important; }
+  :global(a) { color: #000000; }
+  .site-header { background: #FFFFFF; border-bottom: 1px solid #D9D9D9; }
+  .brand-mark { background: #000000; border-color: #000000; color: #FFFFFF; }
+  .brand-text { color: #000000; }
+  .top-nav a { color: #555555; }
+  .top-nav a:hover, .top-nav a.is-active { color: #000000; border-bottom-color: #000000; }
+  .main-container { color: #000000; }
+  .hero-strip { background: #FFFFFF; border-bottom-color: #D9D9D9; }
+  .pill-badge { background: #F6F6F6; border-color: #D9D9D9; color: #333333; }
+  .hero-strip h1 { color: #000000; }
+  .hero-sub, .hero-stats { color: #555555; }
+  .hero-stats strong { color: #000000; }
+  .stat-divider { background: #D9D9D9; }
+  .state-box, .filter-empty { background: #FFFFFF; color: #333333; border-color: #D9D9D9; }
+  .filter-bar { background: #FFFFFF; border-bottom-color: #D9D9D9; }
+  .filter-label { color: #555555; }
+  .filter-chip { background: #FFFFFF; color: #000000; border-color: #BDBDBD; }
+  .filter-chip:hover { background: #F2F2F2; border-color: #000000; color: #000000; }
+  .filter-chip.is-active { background: #000000; color: #FFFFFF; border-color: #000000; }
+  .search-box { background: #FFFFFF; border-color: #BDBDBD; }
+  .search-box:focus-within { border-color: #000000; }
+  .search-box input { color: #000000; }
+  .search-box input::placeholder { color: #666666; }
+  .search-box svg { stroke: #555555; }
+  .update-section { background: #FFFFFF; border-bottom-color: #D9D9D9; }
+  .section-kicker, .section-count, .date-context { color: #555555; }
+  .section-heading h2 { color: #000000; }
+  .featured-card { background: #FFFFFF; border-color: #D0D0D0; color: #000000; }
+  .featured-copy { color: #000000; }
+  .category, .source { background: #F6F6F6; color: #333333; border-color: #D9D9D9; }
+  .featured-label { color: #555555; }
+  .featured-card h3 a, .deck-card h3 a, .mini-card h3 a { color: #000000; }
+  .featured-card h3 a:hover, .deck-card h3 a:hover, .mini-card h3 a:hover { color: #000000; text-decoration: underline; text-underline-offset: 3px; }
+  .featured-card p { color: #444444; }
+  .featured-meta, .mini-footer, .card-inline-meta, .card-footer { color: #555555; }
+  .featured-meta strong, .mini-footer strong, .card-footer strong, .card-inline-meta strong { color: #000000; }
+  .primary-btn { background: #000000; color: #FFFFFF; border-radius: 8px; }
+  .primary-btn:hover { background: #333333; color: #FFFFFF; }
+  .feature-art { background: #F6F6F6; border-color: #D9D9D9; }
+  .mini-card, .deck-card { background: #FFFFFF; border-color: #D0D0D0; color: #000000; }
+  .mini-card:hover, .deck-card:hover { border-color: #000000; background: #FAFAFA; }
+  .mini-topline a, .text-link, .text-link:hover { color: #000000; }
+  .summary, .mini-source { color: #555555; }
+  .card-footer { border-top-color: #D9D9D9; }
+  .empty-today { background: #F6F6F6; border-color: #BDBDBD; color: #333333; }
+  .site-footer { background: #FFFFFF; border-top-color: #D9D9D9; }
+  .footer-brand p, .footer-note { color: #555555; }
+  :global(html.scroll-reveal-ready) [data-scroll-reveal] { opacity: 0; transform: translateY(18px); transition: opacity 600ms ease-out, transform 600ms ease-out; }
+  :global(html.scroll-reveal-ready) [data-scroll-reveal].is-visible { opacity: 1; transform: translateY(0); }
+  @media (max-width: 640px) {
+    .main-container { padding: 26px 16px 44px; }
+    .hero-strip { text-align: center; }
+    .feature-art { background: #F6F6F6; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(html.scroll-reveal-ready) [data-scroll-reveal], :global(html.scroll-reveal-ready) [data-scroll-reveal].is-visible { opacity: 1; transform: none; transition: none; }
   }
 
 </style>
