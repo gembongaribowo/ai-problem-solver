@@ -139,16 +139,34 @@ const countWeek = allArticles.filter((article) => {
 
     <main class="main-container">
       <section class="hero-strip">
-        <span class="pill-badge">PRODUCT INTELLIGENCE</span>
-        <h1>Latest AI Product Updates</h1>
-        <p class="hero-sub">
-          Practical launches, adoption stories, and real-world AI impact — distilled for product teams.
-        </p>
+        <div class="hero-copy">
+          <span class="pill-badge">PRODUCT INTELLIGENCE</span>
+          <h1>Latest AI Product Updates</h1>
+          <p class="hero-sub">
+            Practical launches, adoption stories, and real-world AI impact — distilled for product teams.
+          </p>
 
-        <div class="hero-stats" aria-label="Update counts">
-          <span><strong>{countToday}</strong> new today</span>
-          <span class="stat-divider"></span>
-          <span><strong>{countWeek}</strong> this week</span>
+          <div class="hero-stats" aria-label="Update counts">
+            <span class="hero-stat"><strong>{countToday}</strong><span>new today</span></span>
+            <span class="stat-divider" aria-hidden="true"></span>
+            <span class="hero-stat"><strong>{countWeek}</strong><span>this week</span></span>
+          </div>
+        </div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <svg class="hero-illustration" viewBox="0 0 360 220" role="presentation">
+            <ellipse cx="180" cy="110" rx="145" ry="45" transform="rotate(-16 180 110)" fill="none" stroke="#BDBDBD" stroke-width="1.2" />
+            <ellipse cx="180" cy="110" rx="116" ry="72" transform="rotate(27 180 110)" fill="none" stroke="#D9D9D9" stroke-width="1.2" />
+            <circle cx="180" cy="110" r="54" fill="none" stroke="#D9D9D9" stroke-width="1" />
+            <path d="M62 139 118 123 154 132 202 88 241 98 294 67" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="62" cy="139" r="4" fill="#000000" />
+            <circle cx="118" cy="123" r="4" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+            <circle cx="241" cy="98" r="4" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+            <circle cx="294" cy="67" r="4" fill="#000000" />
+            <rect x="148" y="78" width="64" height="64" rx="8" fill="#000000" />
+            <text x="180" y="120" fill="#FFFFFF" font-family="Inter,Arial,sans-serif" font-size="24" font-weight="700" text-anchor="middle" letter-spacing="-1">AI</text>
+          </svg>
+          <span class="hero-visual-caption">SIGNALS → IMPACT</span>
         </div>
       </section>
 
@@ -1122,6 +1140,86 @@ const countWeek = allArticles.filter((article) => {
   }
   @media (prefers-reduced-motion: reduce) {
     :global(html.scroll-reveal-ready) [data-scroll-reveal], :global(html.scroll-reveal-ready) [data-scroll-reveal].is-visible { opacity: 1; transform: none; transition: none; }
+  }
+
+
+  .hero-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(260px, .85fr);
+    align-items: center;
+    gap: clamp(24px, 4vw, 56px);
+    min-height: 0;
+    margin: 18px 0 12px;
+    padding: 26px 0 30px;
+    text-align: center;
+    border-bottom: 1px solid #D9D9D9;
+  }
+  .hero-copy {
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .hero-copy .pill-badge { align-self: center; }
+  .hero-copy h1 {
+    width: 100%;
+    margin: 12px 0 8px;
+    color: #000000;
+    font-size: clamp(32px, 3.2vw, 42px);
+    line-height: 1.08;
+    letter-spacing: -1.2px;
+    text-align: center;
+  }
+  .hero-copy .hero-sub {
+    width: min(100%, 520px);
+    margin: 0 auto;
+    color: #555555;
+    font-size: 15px;
+    line-height: 1.55;
+    text-align: center;
+  }
+  .hero-copy .hero-stats {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    margin: 18px 0 0;
+  }
+  .hero-stat { display: flex; flex-direction: column; align-items: center; gap: 1px; color: #555555; font-size: 12px; }
+  .hero-stat strong { color: #000000; font-size: 24px; line-height: 1.1; font-weight: 700; letter-spacing: -.6px; }
+  .hero-stats .stat-divider { width: 1px; height: 32px; background: #D9D9D9; }
+  .hero-visual {
+    width: 100%;
+    max-width: 350px;
+    min-height: 0;
+    margin: 0 auto;
+    padding: 12px 12px 8px;
+    border: 1px solid #E1E1E1;
+    border-radius: 12px;
+    background: #F7F7F7;
+  }
+  .hero-illustration { display: block; width: 100%; height: auto; }
+  .hero-visual-caption { display: block; margin-top: 2px; color: #666666; font-size: 9px; font-weight: 600; letter-spacing: 1.5px; text-align: center; }
+  .filter-bar { margin-top: 0; }
+  @media (max-width: 760px) {
+    .hero-strip { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 12px; padding: 20px 0 22px; }
+    .hero-copy { max-width: 620px; }
+    .hero-copy h1 { font-size: clamp(30px, 7vw, 36px); }
+    .hero-copy .hero-sub { max-width: 520px; }
+    .hero-visual { width: min(100%, 270px); padding: 8px 8px 6px; }
+    .hero-visual-caption { font-size: 8px; }
+    .hero-copy .hero-stats { margin-top: 14px; }
+  }
+  @media (max-width: 420px) {
+    .hero-strip { gap: 12px; padding-top: 16px; padding-bottom: 18px; }
+    .hero-copy h1 { font-size: 30px; }
+    .hero-copy .hero-sub { font-size: 14px; }
+    .hero-visual { width: min(100%, 220px); }
+    .hero-stat strong { font-size: 22px; }
   }
 
 </style>
