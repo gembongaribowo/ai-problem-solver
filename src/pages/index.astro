@@ -1113,15 +1113,15 @@ const countWeek = allArticles.filter((article) => {
   .empty-today { background: #F6F6F6; border-color: #BDBDBD; color: #333333; }
   .site-footer { background: #FFFFFF; border-top-color: #D9D9D9; }
   .footer-brand p, .footer-note { color: #555555; }
-  .scroll-reveal-ready [data-scroll-reveal] { opacity: 0; transform: translateY(18px); transition: opacity 600ms ease-out, transform 600ms ease-out; }
-  .scroll-reveal-ready [data-scroll-reveal].is-visible { opacity: 1; transform: translateY(0); }
+  :global(html.scroll-reveal-ready) [data-scroll-reveal] { opacity: 0; transform: translateY(18px); transition: opacity 600ms ease-out, transform 600ms ease-out; }
+  :global(html.scroll-reveal-ready) [data-scroll-reveal].is-visible { opacity: 1; transform: translateY(0); }
   @media (max-width: 640px) {
     .main-container { padding: 26px 16px 44px; }
     .hero-strip { text-align: center; }
     .feature-art { background: #F6F6F6; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .scroll-reveal-ready [data-scroll-reveal], .scroll-reveal-ready [data-scroll-reveal].is-visible { opacity: 1; transform: none; transition: none; }
+    :global(html.scroll-reveal-ready) [data-scroll-reveal], :global(html.scroll-reveal-ready) [data-scroll-reveal].is-visible { opacity: 1; transform: none; transition: none; }
   }
 
 </style>
