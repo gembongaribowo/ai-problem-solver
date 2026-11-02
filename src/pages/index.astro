@@ -516,6 +516,37 @@ const countWeek = allArticles.filter((article) => {
       }, { passive: true });
       window.addEventListener('resize', updatePageProgress);
       updatePageProgress();
+
+      const shimmerTargets = document.querySelectorAll('.hero-visual, .filter-chip, .search-box, .featured-card, .mini-card, .deck-card, .primary-btn, .state-box, .empty-today');
+      const reduceShimmer = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let shimmerTimer = 0;
+      let lastPointerActivity = 0;
+      const clearIdleShimmer = () => {
+        window.clearTimeout(shimmerTimer);
+        shimmerTargets.forEach((target) => target.classList.remove('is-idle-shimmer'));
+      };
+      const scheduleIdleShimmer = () => {
+        clearIdleShimmer();
+        if (reduceShimmer || document.hidden) return;
+        shimmerTimer = window.setTimeout(() => {
+          shimmerTargets.forEach((target) => {
+            if (target.hidden || target.getClientRects().length === 0) return;
+            target.style.setProperty('--idle-shimmer-delay', Math.round(Math.random() * 1200) + 'ms');
+            target.classList.add('idle-shimmer-target', 'is-idle-shimmer');
+          });
+        }, 3000 + Math.round(Math.random() * 500));
+      };
+      ['pointerdown', 'keydown', 'scroll', 'touchstart', 'wheel'].forEach((eventName) => {
+        window.addEventListener(eventName, scheduleIdleShimmer, { passive: true });
+      });
+      window.addEventListener('pointermove', () => {
+        const now = Date.now();
+        if (now - lastPointerActivity < 350) return;
+        lastPointerActivity = now;
+        scheduleIdleShimmer();
+      }, { passive: true });
+      document.addEventListener('visibilitychange', scheduleIdleShimmer);
+      scheduleIdleShimmer();
     </script>
   </body>
 </html>
@@ -1328,6 +1359,43 @@ const countWeek = allArticles.filter((article) => {
   }
   :global(html.scroll-reveal-ready) [data-scroll-reveal] {
     transition-delay: var(--scroll-reveal-delay, 0ms);
+  }
+
+
+  .idle-shimmer-target {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .idle-shimmer-target::after {
+    content: "";
+    position: absolute;
+    z-index: 5;
+    top: -20%;
+    bottom: -20%;
+    left: -24%;
+    width: 12%;
+    border-radius: inherit;
+    background: rgba(0, 0, 0, .055);
+    opacity: 0;
+    transform: translateX(-150%) skewX(-16deg);
+    pointer-events: none;
+  }
+  .primary-btn.idle-shimmer-target::after,
+  .filter-chip.is-active.idle-shimmer-target::after {
+    background: rgba(255, 255, 255, .22);
+  }
+  .idle-shimmer-target.is-idle-shimmer::after {
+    animation: ai-product-impact-shimmer 850ms ease-out var(--idle-shimmer-delay, 0ms) 1 both;
+  }
+  @keyframes ai-product-impact-shimmer {
+    0% { opacity: 0; transform: translateX(-150%) skewX(-16deg); }
+    18% { opacity: .65; }
+    82% { opacity: .65; }
+    100% { opacity: 0; transform: translateX(1100%) skewX(-16deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .idle-shimmer-target::after, .idle-shimmer-target.is-idle-shimmer::after { animation: none !important; }
   }
 
 </style>
