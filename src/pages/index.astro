@@ -391,7 +391,7 @@ const countToday = todayArticles.length;
                 <span class="section-count">{sortedEarlier.length} updates</span>
               </div>
 
-              <div class="deck-grid">
+              <div class="deck-grid" id="archive-grid">
                 {sortedEarlier.map((article) => (
                   <article
                     class="deck-card"
@@ -416,6 +416,10 @@ const countToday = todayArticles.length;
                     <a href={`/${article.slug}`} class="text-link">Read update →</a>
                   </article>
                 ))}
+              </div>
+              <div class="archive-pagination" id="archive-pagination" hidden>
+                <span class="archive-pagination-status" id="archive-pagination-status" aria-live="polite"></span>
+                <button class="primary-btn" id="load-more-articles" type="button">Load more updates</button>
               </div>
             </section>
           )}
@@ -446,6 +450,13 @@ const countToday = todayArticles.length;
       const sections = document.querySelectorAll('[data-section]');
       const emptyState = document.getElementById('filter-empty');
       const searchInput = document.getElementById('update-search');
+      const archiveGrid = document.getElementById('archive-grid');
+      const archiveCards = Array.from(archiveGrid?.querySelectorAll('[data-card]') || []);
+      const archivePagination = document.getElementById('archive-pagination');
+      const archivePaginationStatus = document.getElementById('archive-pagination-status');
+      const loadMoreButton = document.getElementById('load-more-articles');
+      const archivePageSize = 20;
+      let archiveVisibleLimit = archivePageSize;
 
       let selectedFilter = 'all';
       let searchTerm = '';
@@ -458,8 +469,12 @@ const countToday = todayArticles.length;
           const haystack = card.dataset.search || '';
           const searchMatch = !searchTerm || haystack.includes(searchTerm);
           const matches = categoryMatch && searchMatch;
+          const isArchiveCard = card.closest('#archive-grid') !== null;
+          const archiveIndex = isArchiveCard ? archiveCards.indexOf(card) : -1;
+          const paginateArchive = isArchiveCard && selectedFilter === 'all' && !searchTerm;
+          const withinArchiveLimit = !paginateArchive || archiveIndex < archiveVisibleLimit;
 
-          card.hidden = !matches;
+          card.hidden = !matches || !withinArchiveLimit;
           if (matches) visibleTotal += 1;
         });
 
@@ -475,11 +490,29 @@ const countToday = todayArticles.length;
         });
 
         if (emptyState) emptyState.hidden = visibleTotal !== 0;
+
+        const matchingArchiveCount = archiveCards.filter((card) => {
+          const categoryMatch = selectedFilter === 'all' || card.dataset.category === selectedFilter;
+          const searchMatch = !searchTerm || (card.dataset.search || '').includes(searchTerm);
+          return categoryMatch && searchMatch;
+        }).length;
+        const displayedArchiveCount = archiveCards.filter((card) => !card.hidden).length;
+        const shouldOfferMore = selectedFilter === 'all' && !searchTerm && displayedArchiveCount < matchingArchiveCount;
+
+        if (archivePagination) archivePagination.hidden = archiveCards.length === 0;
+        if (archivePaginationStatus) {
+          archivePaginationStatus.textContent = `Showing ${displayedArchiveCount} of ${matchingArchiveCount} earlier updates`;
+        }
+        if (loadMoreButton) {
+          loadMoreButton.hidden = !shouldOfferMore;
+          loadMoreButton.textContent = `Load ${Math.min(archivePageSize, matchingArchiveCount - displayedArchiveCount)} more updates`;
+        }
       };
 
       chips.forEach((chip) => {
         chip.addEventListener('click', () => {
           selectedFilter = chip.dataset.filter || 'all';
+          archiveVisibleLimit = archivePageSize;
           chips.forEach((item) => item.classList.remove('is-active'));
           chip.classList.add('is-active');
           refreshCards();
@@ -488,6 +521,12 @@ const countToday = todayArticles.length;
 
       searchInput?.addEventListener('input', (event) => {
         searchTerm = String(event.target?.value || '').trim().toLowerCase();
+        archiveVisibleLimit = archivePageSize;
+        refreshCards();
+      });
+
+      loadMoreButton?.addEventListener('click', () => {
+        archiveVisibleLimit += archivePageSize;
         refreshCards();
       });
 
@@ -1409,5 +1448,17 @@ const countToday = todayArticles.length;
   @media (prefers-reduced-motion: reduce) {
     .idle-shimmer-target::after, .idle-shimmer-target.is-idle-shimmer::after { animation: none !important; }
   }
+
+  .archive-pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 22px 0 8px;
+  }
+  .archive-pagination-status { color: #666666; font-size: 12px; }
+  .archive-pagination button { min-width: 190px; min-height: 48px; cursor: pointer; }
+  .archive-pagination button[hidden] { display: none; }
 
 </style>
