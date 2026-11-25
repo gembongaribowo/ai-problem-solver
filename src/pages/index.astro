@@ -1,50 +1,45 @@
 ---
 import { env } from 'cloudflare:workers';
-import { listPublishedArticles, type ArticleRuntimeEnv } from '../lib/articles';
+import { listHomepageArticles, type ArticleRuntimeEnv } from '../lib/articles';
 
 const runtimeEnv = env as unknown as ArticleRuntimeEnv;
-const { data: articles, error } = await listPublishedArticles(runtimeEnv);
+const { data: articles, error } = await listHomepageArticles(runtimeEnv);
 const allArticles = articles ?? [];
+
+const jakartaDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Jakarta',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
 
 const jakartaDateKey = (value) => {
   if (!value) return '';
-  try {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Jakarta',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date(value));
-  } catch {
-    return '';
-  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : jakartaDateFormatter.format(date);
 };
 
 const formatDate = (value) => {
   if (!value) return '';
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Jakarta',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }).format(new Date(value));
-  } catch {
-    return '';
-  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
 };
 
 const formatShortDate = (value) => {
   if (!value) return '';
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Jakarta',
-      month: 'short',
-      day: 'numeric',
-    }).format(new Date(value));
-  } catch {
-    return '';
-  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta',
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
 };
 
 const now = new Date();
@@ -52,12 +47,32 @@ const todayKey = jakartaDateKey(now);
 const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 const yesterdayKey = jakartaDateKey(yesterday);
 
-const todayArticles = allArticles.filter((article) => jakartaDateKey(article.published_at) === todayKey);
-const yesterdayArticles = allArticles.filter((article) => jakartaDateKey(article.published_at) === yesterdayKey);
-const earlierArticles = allArticles.filter((article) => {
+const todayArticles = [];
+const yesterdayArticles = [];
+const earlierArticles = [];
+let countWeek = 0;
+
+for (const article of allArticles) {
   const key = jakartaDateKey(article.published_at);
-  return key !== todayKey && key !== yesterdayKey;
-});
+
+  if (key === todayKey) {
+    todayArticles.push(article);
+  } else if (key === yesterdayKey) {
+    yesterdayArticles.push(article);
+  } else {
+    earlierArticles.push(article);
+  }
+
+  if (article.published_at) {
+    const published = new Date(article.published_at);
+    if (
+      !Number.isNaN(published.getTime()) &&
+      now.getTime() - published.getTime() <= 7 * 24 * 60 * 60 * 1000
+    ) {
+      countWeek += 1;
+    }
+  }
+}
 
 const sortByScore = (items) =>
   [...items].sort((a, b) => Number(b.score ?? 0) - Number(a.score ?? 0));
@@ -102,11 +117,6 @@ const getSummary = (article) => {
 };
 
 const countToday = todayArticles.length;
-const countWeek = allArticles.filter((article) => {
-  if (!article.published_at) return false;
-  const published = new Date(article.published_at);
-  return now.getTime() - published.getTime() <= 7 * 24 * 60 * 60 * 1000;
-}).length;
 ---
 
 <!doctype html>
