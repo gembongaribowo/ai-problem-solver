@@ -615,6 +615,7 @@ const getSummary = (article) => {
           selectedFilter = chip.dataset.filter || 'all';
           chips.forEach((item) => item.classList.remove('is-active'));
           chip.classList.add('is-active');
+          refreshRecentCards();
           fetchArchivePage();
         });
       });
