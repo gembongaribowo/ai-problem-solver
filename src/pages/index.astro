@@ -32,7 +32,6 @@ const [recentResult, archiveResult, categoryResult, countsResult] = await Promis
 ]);
 const error = recentResult.error || archiveResult.error || categoryResult.error || countsResult.error;
 const recentArticles = recentResult.data ?? [];
-const allArticles = [...recentArticles, ...(archiveResult.data ?? [])];
 const initialArchiveArticles = archiveResult.data ?? [];
 const archiveHasMore = archiveResult.hasMore;
 const archiveNextCursor = archiveResult.nextCursor;
@@ -100,7 +99,6 @@ const sortedToday = sortByScore(todayArticles);
 const featuredArticle = sortedToday[0] ?? null;
 const todayRemaining = featuredArticle ? sortedToday.slice(1) : [];
 const sortedYesterday = sortByScore(yesterdayArticles);
-const sortedEarlier = sortByScore(earlierArticles);
 
 const cleanTitle = (article) => {
   const raw = String(article.title ?? article.source_title ?? 'Untitled update').trim();
@@ -388,7 +386,7 @@ const getSummary = (article) => {
             </section>
           )}
 
-          {sortedEarlier.length > 0 && (
+          {archiveTotal > 0 && (
             <section class="update-section" id="all-updates" data-section>
               <div class="section-heading">
                 <div>
@@ -538,6 +536,8 @@ const getSummary = (article) => {
         });
 
         const archiveCount = archiveGrid?.querySelectorAll('[data-card]').length || 0;
+        const archiveSection = archiveGrid?.closest('[data-section]');
+        if (archiveSection) archiveSection.hidden = archiveCount === 0;
         if (emptyState) emptyState.hidden = visibleRecentTotal + archiveCount !== 0 || archiveHasMore;
       };
 
