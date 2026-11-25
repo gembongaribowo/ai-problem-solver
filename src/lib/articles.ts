@@ -82,6 +82,56 @@ function d1UnavailableError(runtimeEnv: ArticleRuntimeEnv): Error {
 }
 
 /**
+ * Lightweight homepage read path. The homepage only needs card metadata;
+ * avoid transferring the potentially large structured article body.
+ */
+const HOMEPAGE_ARTICLE_COLUMNS = [
+  'slug',
+  'published_at',
+  'category',
+  'title',
+  'source_title',
+  'source_name',
+  'score',
+].join(', ');
+
+export async function listHomepageArticles(
+  runtimeEnv: ArticleRuntimeEnv
+): Promise<ArticleListResult> {
+  if (!isD1Ready(runtimeEnv)) {
+    return { data: [], error: d1UnavailableError(runtimeEnv) };
+  }
+
+  try {
+    const result = await runtimeEnv.DB!
+      .prepare(
+        `SELECT ${HOMEPAGE_ARTICLE_COLUMNS},
+                COALESCE(
+                  summary,
+                  CASE
+                    WHEN json_valid(content)
+                    THEN json_extract(content, '$.problem_statement.what_wasnt_working')
+                  END
+                ) AS summary
+         FROM articles
+         WHERE status = ?
+         ORDER BY published_at DESC, id ASC`
+      )
+      .bind('published')
+      .all<ArticleRecord>();
+
+    if (result.success === false) {
+      throw new Error(result.error || 'D1 homepage query failed.');
+    }
+
+    return { data: result.results ?? [], error: null };
+  } catch (error) {
+    console.error('D1 homepage article query failed.', error);
+    return { data: [], error };
+  }
+}
+
+/**
  * D1 is the only article read source. Fail explicitly when it is unavailable
  * so an outage cannot silently serve stale data from another database.
  */
