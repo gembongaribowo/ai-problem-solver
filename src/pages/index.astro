@@ -1,10 +1,45 @@
 ---
 import { env } from 'cloudflare:workers';
-import { listHomepageArticles, type ArticleRuntimeEnv } from '../lib/articles';
+import {
+  listHomepageRecentArticles,
+  listHomepageArchiveArticles,
+  listHomepageCategories,
+  getHomepageArticleCounts,
+  type ArticleRuntimeEnv,
+} from '../lib/articles';
 
 const runtimeEnv = env as unknown as ArticleRuntimeEnv;
-const { data: articles, error } = await listHomepageArticles(runtimeEnv);
-const allArticles = articles ?? [];
+const dateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Jakarta',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const jakartaStartOfDay = (daysAgo: number) => {
+  const dateKey = dateKeyFormatter.format(new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000));
+  return new Date(`${dateKey}T00:00:00+07:00`).toISOString();
+};
+const todayStart = jakartaStartOfDay(0);
+const yesterdayStart = jakartaStartOfDay(1);
+const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+const archiveBefore = yesterdayStart;
+
+const [recentResult, archiveResult, categoryResult, countsResult] = await Promise.all([
+  listHomepageRecentArticles(runtimeEnv, archiveBefore),
+  listHomepageArchiveArticles(runtimeEnv, archiveBefore, 10),
+  listHomepageCategories(runtimeEnv),
+  getHomepageArticleCounts(runtimeEnv, todayStart, weekStart, archiveBefore),
+]);
+const error = recentResult.error || archiveResult.error || categoryResult.error || countsResult.error;
+const recentArticles = recentResult.data ?? [];
+const allArticles = [...recentArticles, ...(archiveResult.data ?? [])];
+const initialArchiveArticles = archiveResult.data ?? [];
+const archiveHasMore = archiveResult.hasMore;
+const archiveNextCursor = archiveResult.nextCursor;
+const categories = categoryResult.data ?? [];
+const countToday = countsResult.today;
+const countWeek = countsResult.week;
+const archiveTotal = countsResult.archive;
 
 const jakartaDateFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Jakarta',
@@ -51,29 +86,11 @@ const yesterdayKey = jakartaDateKey(yesterday);
 
 const todayArticles = [];
 const yesterdayArticles = [];
-const earlierArticles = [];
-let countWeek = 0;
 
-for (const article of allArticles) {
+for (const article of recentArticles) {
   const key = jakartaDateKey(article.published_at);
-
-  if (key === todayKey) {
-    todayArticles.push(article);
-  } else if (key === yesterdayKey) {
-    yesterdayArticles.push(article);
-  } else {
-    earlierArticles.push(article);
-  }
-
-  if (article.published_at) {
-    const published = new Date(article.published_at);
-    if (
-      !Number.isNaN(published.getTime()) &&
-      now.getTime() - published.getTime() <= 7 * 24 * 60 * 60 * 1000
-    ) {
-      countWeek += 1;
-    }
-  }
+  if (key === todayKey) todayArticles.push(article);
+  else if (key === yesterdayKey) yesterdayArticles.push(article);
 }
 
 const sortByScore = (items) =>
@@ -84,15 +101,6 @@ const featuredArticle = sortedToday[0] ?? null;
 const todayRemaining = featuredArticle ? sortedToday.slice(1) : [];
 const sortedYesterday = sortByScore(yesterdayArticles);
 const sortedEarlier = sortByScore(earlierArticles);
-
-const categories = [
-  ...new Set(
-    allArticles
-      .map((article) => article.category)
-      .filter(Boolean)
-      .map((category) => String(category).trim())
-  ),
-].sort((a, b) => a.localeCompare(b));
 
 const cleanTitle = (article) => {
   const raw = String(article.title ?? article.source_title ?? 'Untitled update').trim();
@@ -118,7 +126,6 @@ const getSummary = (article) => {
   return '';
 };
 
-const countToday = todayArticles.length;
 ---
 
 <!doctype html>
@@ -388,11 +395,11 @@ const countToday = todayArticles.length;
                   <span class="section-kicker">ARCHIVE</span>
                   <h2>Earlier updates</h2>
                 </div>
-                <span class="section-count">{sortedEarlier.length} updates</span>
+                <span class="section-count">{archiveTotal} updates</span>
               </div>
 
-              <div class="deck-grid" id="archive-grid">
-                {sortedEarlier.map((article) => (
+              <div class="deck-grid" id="archive-grid" data-has-more={archiveHasMore ? "true" : "false"} data-cursor-published-at={archiveNextCursor?.published_at ?? ""} data-cursor-id={archiveNextCursor?.id ?? ""}>
+                {initialArchiveArticles.map((article) => (
                   <article
                     class="deck-card"
                     data-card
@@ -417,9 +424,9 @@ const countToday = todayArticles.length;
                   </article>
                 ))}
               </div>
-              <div class="archive-pagination" id="archive-pagination" hidden>
-                <span class="archive-pagination-status" id="archive-pagination-status" aria-live="polite"></span>
-                <button class="primary-btn" id="load-more-articles" type="button">Load more updates</button>
+              <div class="archive-pagination" id="archive-pagination" hidden={ !archiveHasMore }>
+                <span class="archive-pagination-status" id="archive-pagination-status" aria-live="polite">{`Showing ${initialArchiveArticles.length} of ${archiveTotal} earlier updates`}</span>
+                <button class="primary-btn" id="load-more-articles" type="button">Load 10 more updates</button>
               </div>
             </section>
           )}
@@ -446,89 +453,183 @@ const countToday = todayArticles.length;
 
     <script is:inline>
       const chips = document.querySelectorAll('[data-filter]');
-      const cards = document.querySelectorAll('[data-card]');
+      const recentCards = Array.from(document.querySelectorAll('[data-card]')).filter((card) => !card.closest('#archive-grid'));
       const sections = document.querySelectorAll('[data-section]');
       const emptyState = document.getElementById('filter-empty');
       const searchInput = document.getElementById('update-search');
       const archiveGrid = document.getElementById('archive-grid');
-      const archiveCards = Array.from(archiveGrid?.querySelectorAll('[data-card]') || []);
       const archivePagination = document.getElementById('archive-pagination');
       const archivePaginationStatus = document.getElementById('archive-pagination-status');
       const loadMoreButton = document.getElementById('load-more-articles');
-      const archivePageSize = 20;
-      let archiveVisibleLimit = archivePageSize;
-
+      const archivePageSize = 10;
       let selectedFilter = 'all';
       let searchTerm = '';
+      let archiveCursor = archiveGrid?.dataset.cursorPublishedAt && archiveGrid?.dataset.cursorId
+        ? { published_at: archiveGrid.dataset.cursorPublishedAt, id: archiveGrid.dataset.cursorId }
+        : null;
+      let archiveHasMore = archiveGrid?.dataset.hasMore === 'true';
+      let archiveLoadedCount = archiveGrid?.querySelectorAll('[data-card]').length || 0;
+      let archiveRequestController = null;
+      let searchDebounce = 0;
 
-      const refreshCards = () => {
-        let visibleTotal = 0;
+      const makeArchiveCard = (article) => {
+        const card = document.createElement('article');
+        card.className = 'deck-card';
+        card.dataset.card = '';
+        card.dataset.category = String(article.category || 'Other').toLowerCase();
+        card.dataset.search = [article.title || article.source_title || 'Untitled update', article.source_name || '', article.category || '', article.summary || ''].join(' ').toLowerCase();
 
-        cards.forEach((card) => {
+        const content = document.createElement('div');
+        const meta = document.createElement('div');
+        meta.className = 'card-meta';
+        const category = document.createElement('span');
+        category.className = 'category';
+        category.textContent = article.category || 'Other';
+        const source = document.createElement('span');
+        source.className = 'source';
+        source.textContent = article.source_name || '';
+        meta.append(category, source);
+
+        const heading = document.createElement('h3');
+        const titleLink = document.createElement('a');
+        titleLink.href = '/' + encodeURIComponent(article.slug || '');
+        titleLink.textContent = article.title || article.source_title || 'Untitled update';
+        heading.append(titleLink);
+
+        const inlineMeta = document.createElement('div');
+        inlineMeta.className = 'card-inline-meta';
+        const date = document.createElement('span');
+        date.textContent = article.published_at ? new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jakarta', month: 'short', day: 'numeric' }).format(new Date(article.published_at)) : '';
+        inlineMeta.append(date);
+
+        const body = document.createElement('div');
+        body.append(meta, heading, inlineMeta);
+        if (article.summary) {
+          const summary = document.createElement('p');
+          summary.className = 'summary';
+          summary.textContent = article.summary;
+          body.append(summary);
+        }
+
+        const readLink = document.createElement('a');
+        readLink.href = titleLink.href;
+        readLink.className = 'text-link';
+        readLink.textContent = 'Read update →';
+        card.append(body, readLink);
+        return card;
+      };
+
+      const refreshRecentCards = () => {
+        let visibleRecentTotal = 0;
+        recentCards.forEach((card) => {
           const categoryMatch = selectedFilter === 'all' || card.dataset.category === selectedFilter;
-          const haystack = card.dataset.search || '';
-          const searchMatch = !searchTerm || haystack.includes(searchTerm);
-          const matches = categoryMatch && searchMatch;
-          const isArchiveCard = card.closest('#archive-grid') !== null;
-          const archiveIndex = isArchiveCard ? archiveCards.indexOf(card) : -1;
-          const paginateArchive = isArchiveCard && selectedFilter === 'all' && !searchTerm;
-          const withinArchiveLimit = !paginateArchive || archiveIndex < archiveVisibleLimit;
-
-          card.hidden = !matches || !withinArchiveLimit;
-          if (matches) visibleTotal += 1;
+          const searchMatch = !searchTerm || (card.dataset.search || '').includes(searchTerm);
+          card.hidden = !(categoryMatch && searchMatch);
+          if (!card.hidden) visibleRecentTotal += 1;
         });
 
         sections.forEach((section) => {
+          if (section.id === 'all-updates') return;
           const visibleCards = section.querySelectorAll('[data-card]:not([hidden])');
           const hasStaticEmptyState = section.querySelector('[data-empty-state]');
-
-          if (selectedFilter === 'all' && !searchTerm && hasStaticEmptyState) {
-            section.hidden = false;
-          } else {
-            section.hidden = visibleCards.length === 0;
-          }
+          section.hidden = selectedFilter === 'all' && !searchTerm && hasStaticEmptyState
+            ? false
+            : visibleCards.length === 0;
         });
 
-        if (emptyState) emptyState.hidden = visibleTotal !== 0;
+        const archiveCount = archiveGrid?.querySelectorAll('[data-card]').length || 0;
+        if (emptyState) emptyState.hidden = visibleRecentTotal + archiveCount !== 0 || archiveHasMore;
+      };
 
-        const matchingArchiveCount = archiveCards.filter((card) => {
-          const categoryMatch = selectedFilter === 'all' || card.dataset.category === selectedFilter;
-          const searchMatch = !searchTerm || (card.dataset.search || '').includes(searchTerm);
-          return categoryMatch && searchMatch;
-        }).length;
-        const displayedArchiveCount = archiveCards.filter((card) => !card.hidden).length;
-        const shouldOfferMore = selectedFilter === 'all' && !searchTerm && displayedArchiveCount < matchingArchiveCount;
-
-        if (archivePagination) archivePagination.hidden = archiveCards.length === 0;
+      const updateArchiveStatus = () => {
+        if (archivePagination) archivePagination.hidden = !archiveHasMore;
         if (archivePaginationStatus) {
-          archivePaginationStatus.textContent = `Showing ${displayedArchiveCount} of ${matchingArchiveCount} earlier updates`;
+          archivePaginationStatus.textContent = searchTerm || selectedFilter !== 'all'
+            ? 'More matching archive updates are available below'
+            : `Showing ${archiveLoadedCount} earlier updates`;
         }
         if (loadMoreButton) {
-          loadMoreButton.hidden = !shouldOfferMore;
-          loadMoreButton.textContent = `Load ${Math.min(archivePageSize, matchingArchiveCount - displayedArchiveCount)} more updates`;
+          loadMoreButton.hidden = !archiveHasMore;
+          loadMoreButton.textContent = 'Load 10 more updates';
+        }
+      };
+
+      const fetchArchivePage = async ({ append = false } = {}) => {
+        if (!archiveGrid) return;
+        archiveRequestController?.abort();
+        archiveRequestController = new AbortController();
+
+        const params = new URLSearchParams({ limit: String(archivePageSize) });
+        if (selectedFilter !== 'all') params.set('category', selectedFilter);
+        if (searchTerm) params.set('q', searchTerm);
+        if (append && archiveCursor) {
+          params.set('cursor_published_at', archiveCursor.published_at);
+          params.set('cursor_id', archiveCursor.id);
+        }
+
+        if (!append) {
+          archiveGrid.setAttribute('aria-busy', 'true');
+          if (loadMoreButton) loadMoreButton.disabled = true;
+        } else if (loadMoreButton) {
+          loadMoreButton.disabled = true;
+          loadMoreButton.textContent = 'Loading…';
+        }
+
+        try {
+          const response = await fetch('/api/archive?' + params.toString(), {
+            headers: { accept: 'application/json' },
+            signal: archiveRequestController.signal,
+          });
+          if (!response.ok) throw new Error('Archive request failed');
+          const result = await response.json();
+          if (!append) archiveGrid.replaceChildren();
+
+          const fragment = document.createDocumentFragment();
+          (result.articles || []).forEach((article) => fragment.append(makeArchiveCard(article)));
+          archiveGrid.append(fragment);
+
+          archiveHasMore = Boolean(result.hasMore);
+          archiveCursor = result.nextCursor || null;
+          archiveLoadedCount = append ? archiveLoadedCount + (result.articles || []).length : (result.articles || []).length;
+          if (archiveGrid.parentElement) {
+            archiveGrid.dataset.hasMore = String(archiveHasMore);
+            archiveGrid.dataset.cursorPublishedAt = archiveCursor?.published_at || '';
+            archiveGrid.dataset.cursorId = archiveCursor?.id || '';
+          }
+          updateArchiveStatus();
+          refreshRecentCards();
+        } catch (error) {
+          if (error.name !== 'AbortError') {
+            console.error('Unable to load archive updates.', error);
+            if (archivePaginationStatus) archivePaginationStatus.textContent = 'Could not load updates. Please try again.';
+            if (loadMoreButton) loadMoreButton.textContent = 'Retry loading updates';
+          }
+        } finally {
+          archiveGrid.removeAttribute('aria-busy');
+          if (loadMoreButton) loadMoreButton.disabled = false;
         }
       };
 
       chips.forEach((chip) => {
         chip.addEventListener('click', () => {
           selectedFilter = chip.dataset.filter || 'all';
-          archiveVisibleLimit = archivePageSize;
           chips.forEach((item) => item.classList.remove('is-active'));
           chip.classList.add('is-active');
-          refreshCards();
+          fetchArchivePage();
         });
       });
 
       searchInput?.addEventListener('input', (event) => {
         searchTerm = String(event.target?.value || '').trim().toLowerCase();
-        archiveVisibleLimit = archivePageSize;
-        refreshCards();
+        window.clearTimeout(searchDebounce);
+        searchDebounce = window.setTimeout(() => fetchArchivePage(), 250);
+        refreshRecentCards();
       });
 
-      loadMoreButton?.addEventListener('click', () => {
-        archiveVisibleLimit += archivePageSize;
-        refreshCards();
-      });
+      loadMoreButton?.addEventListener('click', () => fetchArchivePage({ append: true }));
+
+      updateArchiveStatus();
+      refreshRecentCards();
 
       const revealTargets = document.querySelectorAll('.hero-strip, .filter-bar, [data-section] .section-heading, [data-card]');
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -598,8 +699,7 @@ const countToday = todayArticles.length;
       }, { passive: true });
       document.addEventListener('visibilitychange', scheduleIdleShimmer);
       scheduleIdleShimmer();
-    </script>
-  </body>
+    </script>  </body>
 </html>
 
 <style>
