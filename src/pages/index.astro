@@ -471,46 +471,54 @@ const getSummary = (article) => {
       let archiveRequestController = null;
       let searchDebounce = 0;
 
+      // Astro scopes component CSS with data-astro-cid attributes. Elements
+      // created by client-side pagination need the same attributes or they
+      // render without the homepage card styles.
+      const astroScopeAttributes = Array.from(document.querySelector('.deck-card')?.attributes || [])
+        .filter((attribute) => attribute.name.startsWith('data-astro-cid-'))
+        .map((attribute) => attribute.name);
+      const createScopedElement = (tagName, className) => {
+        const element = document.createElement(tagName);
+        astroScopeAttributes.forEach((attributeName) => element.setAttribute(attributeName, ''));
+        if (className) element.className = className;
+        return element;
+      };
+
       const makeArchiveCard = (article) => {
-        const card = document.createElement('article');
+        const card = createScopedElement('article', 'deck-card');
         card.className = 'deck-card';
         card.dataset.card = '';
         card.dataset.category = String(article.category || 'Other').toLowerCase();
         card.dataset.search = [article.title || article.source_title || 'Untitled update', article.source_name || '', article.category || '', article.summary || ''].join(' ').toLowerCase();
 
-        const content = document.createElement('div');
-        const meta = document.createElement('div');
-        meta.className = 'card-meta';
-        const category = document.createElement('span');
-        category.className = 'category';
+        const content = createScopedElement('div');
+        const meta = createScopedElement('div', 'card-meta');
+        const category = createScopedElement('span', 'category');
         category.textContent = article.category || 'Other';
-        const source = document.createElement('span');
-        source.className = 'source';
+        const source = createScopedElement('span', 'source');
         source.textContent = article.source_name || '';
         meta.append(category, source);
 
-        const heading = document.createElement('h3');
-        const titleLink = document.createElement('a');
+        const heading = createScopedElement('h3');
+        const titleLink = createScopedElement('a');
         titleLink.href = '/' + encodeURIComponent(article.slug || '');
         titleLink.textContent = article.title || article.source_title || 'Untitled update';
         heading.append(titleLink);
 
-        const inlineMeta = document.createElement('div');
-        inlineMeta.className = 'card-inline-meta';
-        const date = document.createElement('span');
+        const inlineMeta = createScopedElement('div', 'card-inline-meta');
+        const date = createScopedElement('span');
         date.textContent = article.published_at ? new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jakarta', month: 'short', day: 'numeric' }).format(new Date(article.published_at)) : '';
         inlineMeta.append(date);
 
-        const body = document.createElement('div');
+        const body = createScopedElement('div');
         body.append(meta, heading, inlineMeta);
         if (article.summary) {
-          const summary = document.createElement('p');
-          summary.className = 'summary';
+          const summary = createScopedElement('p', 'summary');
           summary.textContent = article.summary;
           body.append(summary);
         }
 
-        const readLink = document.createElement('a');
+        const readLink = createScopedElement('a');
         readLink.href = titleLink.href;
         readLink.className = 'text-link';
         readLink.textContent = 'Read update →';
