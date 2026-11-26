@@ -39,6 +39,7 @@ const categories = categoryResult.data ?? [];
 const countToday = countsResult.today;
 const countWeek = countsResult.week;
 const archiveTotal = countsResult.archive;
+const hasAnyArticles = recentArticles.length > 0 || archiveTotal > 0;
 
 const jakartaDateFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Jakarta',
@@ -194,13 +195,13 @@ const getSummary = (article) => {
         </div>
       )}
 
-      {!error && allArticles.length === 0 && (
+      {!error && !hasAnyArticles && (
         <div class="state-box">
           <p>No product updates published yet.</p>
         </div>
       )}
 
-      {!error && allArticles.length > 0 && (
+      {!error && hasAnyArticles && (
         <>
           <section class="filter-bar" aria-label="Browse and search updates">
             <div class="filter-left">
