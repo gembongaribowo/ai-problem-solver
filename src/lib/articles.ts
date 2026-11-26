@@ -215,11 +215,16 @@ const HOMEPAGE_CARD_COLUMNS = `
 
 export async function listHomepageRecentArticles(
   runtimeEnv: ArticleRuntimeEnv,
-  since: string
+  since: string,
+  limit = 30
 ): Promise<ArticleListResult> {
   if (!isD1Ready(runtimeEnv)) {
     return { data: [], error: d1UnavailableError(runtimeEnv) };
   }
+
+  // Bound homepage SSR work even when an unusually large number of articles
+  // are published in the recent window.
+  const safeLimit = Math.min(50, Math.max(1, Math.floor(limit) || 30));
 
   try {
     const result = await runtimeEnv.DB!
@@ -227,9 +232,10 @@ export async function listHomepageRecentArticles(
         `SELECT ${HOMEPAGE_CARD_COLUMNS}
          FROM articles
          WHERE status = ? AND published_at >= ?
-         ORDER BY published_at DESC, id ASC`
+         ORDER BY published_at DESC, id ASC
+         LIMIT ?`
       )
-      .bind('published', since)
+      .bind('published', since, safeLimit)
       .all<ArticleRecord>();
 
     if (result.success === false) {
