@@ -26,8 +26,8 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
 
 export const GET: APIRoute = async ({ request }) => {
   const url = new URL(request.url);
-  const limitValue = Number(url.searchParams.get('limit') || 10);
-  const limit = Number.isFinite(limitValue) ? Math.min(30, Math.max(1, Math.floor(limitValue))) : 10;
+  const limitValue = Number(url.searchParams.get('limit') || 9);
+  const limit = Number.isFinite(limitValue) ? Math.min(30, Math.max(1, Math.floor(limitValue))) : 9;
   const category = url.searchParams.get('category')?.trim().slice(0, 80) || undefined;
   const search = url.searchParams.get('q')?.trim().slice(0, 100) || undefined;
   const cursorPublishedAt = url.searchParams.get('cursor_published_at');
