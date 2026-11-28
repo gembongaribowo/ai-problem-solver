@@ -125,6 +125,30 @@ const getSummary = (article) => {
   return '';
 };
 
+const SITE_URL = 'https://aiproductimpact.com';
+const canonicalUrl = new URL(Astro.url.pathname, SITE_URL).toString();
+const homeDescription = 'Practical AI product launches, adoption stories, and measurable impact — summarized for product teams.';
+const homeStructuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${SITE_URL}/#organization`,
+      name: 'AI Product Impact',
+      url: SITE_URL,
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: 'AI Product Impact',
+      description: homeDescription,
+      publisher: { '@id': `${SITE_URL}/#organization` },
+      inLanguage: 'en',
+    },
+  ],
+};
+
 ---
 
 <!doctype html>
@@ -133,11 +157,19 @@ const getSummary = (article) => {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <title>AI Product Impact</title>
-    <meta
-      name="description"
-      content="Practical AI product launches, adoption stories, and measurable impact — summarized for product teams."
-    />
+    <title>AI Product Impact | AI Product News &amp; Real-World Impact</title>
+    <meta name="description" content={homeDescription} />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AI Product Impact" />
+    <meta property="og:title" content="AI Product Impact | AI Product News &amp; Real-World Impact" />
+    <meta property="og:description" content={homeDescription} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="AI Product Impact | AI Product News &amp; Real-World Impact" />
+    <meta name="twitter:description" content={homeDescription} />
+    <script type="application/ld+json" set:html={JSON.stringify(homeStructuredData).replace(/</g, '\\u003c')}></script>
   </head>
 
   <body>
