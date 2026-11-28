@@ -43,8 +43,13 @@ export async function GET(): Promise<Response> {
       throw new Error(result.error || 'D1 sitemap query failed.');
     }
 
-    const articleUrls = (result.results ?? []).map((article) => {
-      const loc = `${SITE_URL}/${encodeURIComponent(article.slug)}`;
+    const articleUrls = (result.results ?? [])
+      .filter((article): article is { slug: string; published_at: string | null } =>
+        typeof article?.slug === 'string' && article.slug.trim().length > 0
+      )
+      .map((article) => {
+      const slug = article.slug.trim();
+      const loc = `${SITE_URL}/${encodeURIComponent(slug)}`;
       const parsedDate = article.published_at ? new Date(article.published_at) : null;
       const lastmod =
         parsedDate && !Number.isNaN(parsedDate.getTime())
