@@ -146,7 +146,7 @@ const hasSecondaryOutcomes =
 const SITE_URL = 'https://aiproductimpact.com';
 const canonicalUrl = new URL(Astro.url.pathname, SITE_URL).toString();
 const articleTitle = String(article.title ?? 'AI Product Update').trim();
-const rawArticleDescription = String(article.summary ?? standardWhyItMatters ?? '').replace(/\\s+/g, ' ').trim();
+const rawArticleDescription = String(article.summary || standardWhyItMatters || '').replace(/\s+/g, ' ').trim();
 const articleDescription = rawArticleDescription.length > 160
   ? `${rawArticleDescription.slice(0, 157).trimEnd()}...`
   : rawArticleDescription;
