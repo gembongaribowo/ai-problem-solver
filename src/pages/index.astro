@@ -26,7 +26,7 @@ const archiveBefore = yesterdayStart;
 
 const [recentResult, archiveResult, categoryResult, countsResult] = await Promise.all([
   listHomepageRecentArticles(runtimeEnv, archiveBefore),
-  listHomepageArchiveArticles(runtimeEnv, archiveBefore, 10),
+  listHomepageArchiveArticles(runtimeEnv, archiveBefore, 9),
   listHomepageCategories(runtimeEnv),
   getHomepageArticleCounts(runtimeEnv, todayStart, weekStart, archiveBefore),
 ]);
@@ -425,7 +425,7 @@ const getSummary = (article) => {
               </div>
               <div class="archive-pagination" id="archive-pagination" hidden={ !archiveHasMore }>
                 <span class="archive-pagination-status" id="archive-pagination-status" aria-live="polite">{`Showing ${initialArchiveArticles.length} of ${archiveTotal} earlier updates`}</span>
-                <button class="primary-btn" id="load-more-articles" type="button">Load 10 more updates</button>
+                <button class="primary-btn" id="load-more-articles" type="button">Load more updates</button>
               </div>
             </section>
           )}
@@ -460,7 +460,7 @@ const getSummary = (article) => {
       const archivePagination = document.getElementById('archive-pagination');
       const archivePaginationStatus = document.getElementById('archive-pagination-status');
       const loadMoreButton = document.getElementById('load-more-articles');
-      const archivePageSize = 10;
+      const archivePageSize = 9;
       let selectedFilter = 'all';
       let searchTerm = '';
       let archiveCursor = archiveGrid?.dataset.cursorPublishedAt && archiveGrid?.dataset.cursorId
