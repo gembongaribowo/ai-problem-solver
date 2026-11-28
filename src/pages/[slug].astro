@@ -163,7 +163,7 @@ const rawArticleDescription = String(article.summary || standardWhyItMatters || 
 const articleDescription = rawArticleDescription.length > 160
   ? `${rawArticleDescription.slice(0, 157).trimEnd()}...`
   : rawArticleDescription;
-const articlePublishedAt = article.published_at || article.source_published_at || null;
+const articlePublishedAt = article.source_published_at || null;
 const parsedArticlePublishedAt = articlePublishedAt ? new Date(articlePublishedAt) : null;
 const articlePublishedIso = parsedArticlePublishedAt && !Number.isNaN(parsedArticlePublishedAt.getTime())
   ? parsedArticlePublishedAt.toISOString()
@@ -190,7 +190,7 @@ const articleStructuredData = {
       inLanguage: 'en',
       isAccessibleForFree: true,
       ...(article.category ? { articleSection: String(article.category) } : {}),
-      ...(articlePublishedIso ? { datePublished: articlePublishedIso, dateModified: articlePublishedIso } : {}),
+      ...(articlePublishedIso ? { datePublished: articlePublishedIso } : {}),
       ...(article.source_url ? { citation: String(article.source_url) } : {}),
     },
     {
