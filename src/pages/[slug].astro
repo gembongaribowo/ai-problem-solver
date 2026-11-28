@@ -6,9 +6,21 @@ const runtimeEnv = env as unknown as ArticleRuntimeEnv;
 const { slug } = Astro.params;
 const { data: article, error } = await getPublishedArticleBySlug(runtimeEnv, slug ?? "");
 
-if (error || !article) {
-  console.error("Article not found:", error);
-  return Astro.redirect("/");
+if (error) {
+  console.error("Article lookup failed:", error);
+  return new Response(
+    ["<!doctype html>", '<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><meta name="robots" content="noindex, nofollow"><title>Temporarily unavailable — AI Product Impact</title></head>',
+     "<body><main><h1>Temporarily unavailable</h1><p>We’re having trouble loading this update right now. Please try again shortly.</p><a href=\"/\">Back to all updates</a></main></body></html>"].join("\n"),
+    { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "60", "X-Robots-Tag": "noindex, nofollow" } }
+  );
+}
+
+if (!article) {
+  return new Response(
+    ["<!doctype html>", '<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><meta name="robots" content="noindex, nofollow"><title>Update not found — AI Product Impact</title></head>',
+     "<body><main><h1>Update not found</h1><p>The update may have been removed or its address may be incorrect.</p><a href=\"/\">Back to all updates</a></main></body></html>"].join("\n"),
+    { status: 404, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=60", "X-Robots-Tag": "noindex, nofollow" } }
+  );
 }
 
 /* =========================================================
